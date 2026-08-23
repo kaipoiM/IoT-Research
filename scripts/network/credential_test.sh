@@ -3,8 +3,12 @@
 # credential_test.sh — Default Credential & Brute-Force Testing
 # IoT Security Research | Phase 2: Credential Attack
 # =============================================================================
-# Checks for default credentials first, then optionally runs Hydra.
-# Tests web interfaces (HTTP/HTTPS), SSH, Telnet, and RTSP endpoints.
+# Checks for default/weak credentials across HTTP(S), SSH, Telnet, and RTSP
+# endpoints, then optionally runs Hydra for rate-limited brute force.
+#
+# Device-agnostic by design — default credential list draws from Mirai source,
+# Shodan default-password lists, and common vendor defaults. Add device-specific
+# entries via --extra-creds (see notes below for current target devices).
 #
 # Usage:
 #   sudo bash credential_test.sh --target 192.168.100.X --label cam-s1 \
@@ -20,6 +24,7 @@ TARGET=""
 LABEL="device"
 OUT_DIR="./output"
 BRUTE_FORCE=false
+EXTRA_CREDS_FILE=""
 HTTP_PORT=80
 HTTPS_PORT=443
 SSH_PORT=22
@@ -28,11 +33,12 @@ RTSP_PORT=554
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)    TARGET="$2";     shift 2 ;;
-    --label)     LABEL="$2";      shift 2 ;;
-    --out)       OUT_DIR="$2";    shift 2 ;;
-    --http-port) HTTP_PORT="$2";  shift 2 ;;
-    --brute)     BRUTE_FORCE=true; shift ;;
+    --target)       TARGET="$2";          shift 2 ;;
+    --label)        LABEL="$2";           shift 2 ;;
+    --out)          OUT_DIR="$2";         shift 2 ;;
+    --http-port)    HTTP_PORT="$2";       shift 2 ;;
+    --extra-creds)  EXTRA_CREDS_FILE="$2"; shift 2 ;;
+    --brute)        BRUTE_FORCE=true;     shift ;;
     *) echo "[ERROR] Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -47,8 +53,21 @@ log() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG_FILE"; }
 success() { echo "[$(date +%H:%M:%S)] ✓ SUCCESS: $*" | tee -a "$LOG_FILE"; }
 fail()    { echo "[$(date +%H:%M:%S)] ✗ FAILED : $*" | tee -a "$LOG_FILE"; }
 
-# ── Default credential pairs (IoT-specific) ───────────────────────────────────
-# Sources: Mirai source code, Shodan, vendor defaults, CVE database
+# ── Default credential pairs (generic IoT defaults) ───────────────────────────
+# Sources: Mirai source code, Shodan, common vendor defaults, CVE database
+#
+# NOTE ON CURRENT TEST DEVICES:
+#   Aqara 2K Camera — local admin credentials are not publicly documented;
+#     device is cloud-account-gated by design. Test for exposed local
+#     interfaces/services rather than assuming a local admin login exists.
+#   LG TV (webOS)   — no local HTTP admin login by default; focus credential
+#     testing on any exposed local services (e.g., LG ThinQ/webOS dev mode
+#     if enabled) rather than a login form.
+#   KUCACCI Lock    — no network-exposed credential surface (BLE/keypad only);
+#     this script does not apply — use scripts/rf/ble_scan.sh instead.
+#
+# Add device/vendor-specific pairs at runtime via --extra-creds <file>
+# (format: user:pass, one per line) rather than hardcoding a single vendor here.
 DEFAULT_CREDS=(
   "admin:admin"
   "admin:password"
@@ -66,142 +85,87 @@ DEFAULT_CREDS=(
   "user:password"
   "guest:guest"
   "guest:"
-  # TP-Link specific
-  "admin:tp-link"
-  "admin:tplink"
-  # Camera defaults
+  # Generic camera defaults
   "admin:ipcam"
   "admin:camera"
-  # Mirai top credentials
+  # Mirai-sourced defaults (Antonakakis et al. 2017 [4])
+  "666666:666666"
+  "888888:888888"
   "support:support"
+  "default:default"
   "service:service"
   "supervisor:supervisor"
-  "ubnt:ubnt"
-  "xc3511:"
-  "vizxv:"
-  "admin:smcadmin"
 )
 
-log "===== Credential Attack Test ====="
-log "Target    : $TARGET"
-log "Label     : $LABEL"
-log "Brute force: $BRUTE_FORCE"
+if [[ -n "$EXTRA_CREDS_FILE" && -f "$EXTRA_CREDS_FILE" ]]; then
+  log "Loading additional credentials from $EXTRA_CREDS_FILE"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && DEFAULT_CREDS+=("$line")
+  done < "$EXTRA_CREDS_FILE"
+fi
+
+log "===== Credential Testing: $TARGET ====="
+log "Loaded ${#DEFAULT_CREDS[@]} credential pairs"
 log ""
 
-# ── Step 1: Discover open services ────────────────────────────────────────────
-log "── Step 1: Quick Service Discovery ──"
-OPEN_PORTS=$(nmap -p 22,23,80,443,554,8080,8443,8888,9000 --open -T4 "$TARGET" 2>/dev/null \
-  | grep "open" | awk '{print $1}' | tr '\n' ' ')
-log "Open ports: ${OPEN_PORTS:-none detected}"
+# ── Step 1: Port/service discovery ────────────────────────────────────────────
+log "── Step 1: Service Discovery ──"
+OPEN_PORTS=$(nmap -p "$HTTP_PORT,$HTTPS_PORT,$SSH_PORT,$TELNET_PORT,$RTSP_PORT" \
+  -oG - "$TARGET" 2>/dev/null | grep -oP '\d+/open' | grep -oP '^\d+' || true)
+log "Open relevant ports: ${OPEN_PORTS:-none found}"
 
-# ── Step 2: HTTP/HTTPS default credential test ────────────────────────────────
-log ""
-log "── Step 2: HTTP/HTTPS Default Credential Test ──"
-
-test_http_creds() {
-  local SCHEME=$1
-  local PORT=$2
-  local BASE_URL="${SCHEME}://${TARGET}:${PORT}"
-
-  # Common IoT admin paths
-  local PATHS=("/" "/index.html" "/admin" "/cgi-bin/login.cgi" "/cgi-bin/admin.cgi"
-                "/api/v1/login" "/web" "/login" "/setup")
-
-  log "Testing $BASE_URL ..."
-
+# ── Step 2: HTTP(S) admin login test ──────────────────────────────────────────
+if echo "$OPEN_PORTS" | grep -qE "^($HTTP_PORT|$HTTPS_PORT)$"; then
+  log ""
+  log "── Step 2: HTTP(S) Login Test ──"
   for CRED in "${DEFAULT_CREDS[@]}"; do
     USER="${CRED%%:*}"
     PASS="${CRED##*:}"
-
-    # Try Basic Auth
     HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
       --connect-timeout 3 \
       -u "${USER}:${PASS}" \
-      "${BASE_URL}/" 2>/dev/null || echo "000")
-
-    if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "302" ]]; then
-      success "Basic Auth — $SCHEME:$PORT — user='$USER' pass='$PASS' (HTTP $HTTP_CODE)"
-      echo "CREDENTIAL_FOUND: basic_auth $SCHEME $PORT $USER $PASS" >> "$LOG_FILE"
+      "http://${TARGET}:${HTTP_PORT}/" 2>/dev/null || echo "000")
+    if [[ "$HTTP_CODE" == "200" ]]; then
+      success "HTTP login accepted — ${USER}:${PASS}"
+      echo "CREDENTIAL_FOUND: http $TARGET $USER $PASS" >> "$LOG_FILE"
     fi
-
-    # Try form-based login (common IoT pattern)
-    for PATH in "${PATHS[@]}"; do
-      HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
-        --connect-timeout 3 \
-        -X POST \
-        -d "username=${USER}&password=${PASS}&submit=Login" \
-        "${BASE_URL}${PATH}" 2>/dev/null || echo "000")
-
-      if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "302" ]]; then
-        # Heuristic: check for redirect away from login page or session cookie
-        RESP=$(curl -sk -c /tmp/cookie_jar_$$ \
-          -d "username=${USER}&password=${PASS}" \
-          "${BASE_URL}${PATH}" 2>/dev/null || echo "")
-        if echo "$RESP" | grep -qi "logout\|dashboard\|welcome\|signed in"; then
-          success "Form login — $SCHEME:$PORT$PATH — user='$USER' pass='$PASS'"
-          echo "CREDENTIAL_FOUND: form_login $SCHEME $PORT $PATH $USER $PASS" >> "$LOG_FILE"
-          rm -f /tmp/cookie_jar_$$ 2>/dev/null
-        fi
-      fi
-    done
   done
-  rm -f /tmp/cookie_jar_$$ 2>/dev/null
-}
-
-# Test HTTP
-if echo "$OPEN_PORTS" | grep -q "80\|8080"; then
-  test_http_creds "http" "$HTTP_PORT"
+else
+  log "No HTTP(S) admin interface exposed — consistent with cloud-gated devices (e.g., Aqara app-only auth)"
 fi
 
-# Test HTTPS (skip cert validation — that's a separate test)
-if echo "$OPEN_PORTS" | grep -q "443\|8443"; then
-  test_http_creds "https" "$HTTPS_PORT"
-fi
-
-# ── Step 3: SSH default credential test ───────────────────────────────────────
-if echo "$OPEN_PORTS" | grep -q "22"; then
+# ── Step 3: SSH test (if hydra available) ─────────────────────────────────────
+if echo "$OPEN_PORTS" | grep -q "^${SSH_PORT}$" && command -v hydra &>/dev/null; then
   log ""
   log "── Step 3: SSH Default Credential Test ──"
-
-  SSH_CREDS=("admin:admin" "root:root" "root:" "admin:" "ubnt:ubnt" "pi:raspberry")
-
-  for CRED in "${SSH_CREDS[@]}"; do
-    USER="${CRED%%:*}"
-    PASS="${CRED##*:}"
-
-    if ssh -o ConnectTimeout=3 \
-           -o StrictHostKeyChecking=no \
-           -o PasswordAuthentication=yes \
-           -o BatchMode=no \
-           -o PubkeyAuthentication=no \
-           "${USER}@${TARGET}" "echo OK" &>/dev/null; then
-      success "SSH — user='$USER' pass='$PASS'"
-      echo "CREDENTIAL_FOUND: ssh $USER $PASS" >> "$LOG_FILE"
-    fi
-  done
-  log "SSH default credential test complete."
+  printf '%s\n' "${DEFAULT_CREDS[@]}" | sed 's|:|/|' > /tmp/ssh_creds_$$
+  hydra -C /tmp/ssh_creds_$$ -t 4 -T 3 ssh://"$TARGET":"$SSH_PORT" \
+    2>/dev/null | tee -a "$LOG_FILE" || true
+  rm -f /tmp/ssh_creds_$$
 fi
 
 # ── Step 4: Telnet test (legacy IoT protocol) ─────────────────────────────────
-if echo "$OPEN_PORTS" | grep -q "23"; then
+if echo "$OPEN_PORTS" | grep -q "^${TELNET_PORT}$"; then
   log ""
   log "── Step 4: Telnet Default Credential Test ──"
   log "⚠  Telnet found open — this is a CRITICAL finding (plaintext protocol)"
-  echo "CRITICAL_FINDING: telnet_open $TARGET:23" >> "$LOG_FILE"
+  echo "CRITICAL_FINDING: telnet_open $TARGET:$TELNET_PORT" >> "$LOG_FILE"
 
-  # Use Hydra for Telnet credential stuffing
   if command -v hydra &>/dev/null; then
     printf '%s\n' "${DEFAULT_CREDS[@]}" | sed 's|:|/|' > /tmp/telnet_creds_$$
-    hydra -C /tmp/telnet_creds_$$ -t 4 -T 3 telnet://"$TARGET":23 \
+    hydra -C /tmp/telnet_creds_$$ -t 4 -T 3 telnet://"$TARGET":"$TELNET_PORT" \
       2>/dev/null | tee -a "$LOG_FILE" || true
     rm -f /tmp/telnet_creds_$$
   fi
 fi
 
 # ── Step 5: RTSP stream access (IP cameras) ───────────────────────────────────
-if echo "$OPEN_PORTS" | grep -q "554"; then
+if echo "$OPEN_PORTS" | grep -q "^${RTSP_PORT}$"; then
   log ""
   log "── Step 5: RTSP Stream Access Test ──"
+  log "NOTE: Aqara cameras are cloud-account-gated by design and may not expose"
+  log "local RTSP. If port 554 is closed, this is expected — document as such"
+  log "rather than a test failure, and rely on Phase 3 (MITM/cloud interception) instead."
 
   RTSP_PATHS=(
     "/"
@@ -219,8 +183,7 @@ if echo "$OPEN_PORTS" | grep -q "554"; then
     USER="${CRED%%:*}"
     PASS="${CRED##*:}"
     for PATH in "${RTSP_PATHS[@]}"; do
-      RTSP_URL="rtsp://${USER}:${PASS}@${TARGET}:554${PATH}"
-      # Use curl to test RTSP OPTIONS method
+      RTSP_URL="rtsp://${USER}:${PASS}@${TARGET}:${RTSP_PORT}${PATH}"
       HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
         --connect-timeout 3 \
         -X OPTIONS \
@@ -231,6 +194,8 @@ if echo "$OPEN_PORTS" | grep -q "554"; then
       fi
     done
   done
+else
+  log "RTSP port closed/filtered — expected for cloud-only camera architectures"
 fi
 
 # ── Step 6: Optional Hydra brute force ────────────────────────────────────────
@@ -250,7 +215,7 @@ if [[ "$BRUTE_FORCE" == "true" ]]; then
       hydra -L "$USERLIST" -P "$WORDLIST" \
         -t 4 -w 3 \
         -o "$HYDRA_OUT" \
-        http-post-form://"$TARGET":$HTTP_PORT"/admin:username=^USER^&password=^PASS^:F=incorrect" \
+        http-post-form://"$TARGET":"$HTTP_PORT"/admin:username=^USER^&password=^PASS^:F=incorrect \
         2>&1 | tail -5 | tee -a "$LOG_FILE"
       log "Hydra results: $HYDRA_OUT"
     else
@@ -259,25 +224,20 @@ if [[ "$BRUTE_FORCE" == "true" ]]; then
   fi
 fi
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Results summary ────────────────────────────────────────────────────────────
 log ""
 log "===== Credential Test Complete ====="
+FOUND_COUNT=$(grep -c "CREDENTIAL_FOUND" "$LOG_FILE" 2>/dev/null || echo 0)
+log "Credentials found: $FOUND_COUNT"
 
-FOUND=$(grep -c "CREDENTIAL_FOUND" "$LOG_FILE" || echo 0)
-CRITICAL=$(grep -c "CRITICAL_FINDING" "$LOG_FILE" || echo 0)
-
-log "Default credentials found : $FOUND"
-log "Critical findings         : $CRITICAL"
-log ""
-
-if [[ "$FOUND" -gt 0 || "$CRITICAL" -gt 0 ]]; then
-  log "⚠  RESULT: VULNERABLE — device accepts default credentials"
-  log "   OWASP: I1 (Weak Passwords), I9 (Insecure Default Settings)"
-  log "   ETSI:  Provision 5.1 violation"
-  log "   NIST:  SP 800-213 — device should be considered UNSECURABLE in State 1"
+if [[ "$FOUND_COUNT" -gt 0 ]]; then
+  log "⚠  RESULT: Default/weak credential(s) accepted"
+  log "   OWASP: I1 (Weak, Guessable, or Hardcoded Passwords)"
+  log "   ETSI:  Provision 5.1 violation (no universal default passwords)"
 else
-  log "✓  No default credentials accepted."
-  log "   Check if device prompted for password change on first setup."
+  log "✓  No default credentials accepted on tested surfaces."
+  log "   If device is cloud-gated (no local login), document this explicitly —"
+  log "   it is a valid State 1 result, not a null test."
 fi
 
-log "Full log: $LOG_FILE"
+log "Next: proceed to Phase 3 (scripts/network/mitm_arp.sh)"

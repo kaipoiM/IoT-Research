@@ -9,11 +9,12 @@ A hands-on penetration testing study evaluating consumer IoT devices across thre
 **Goal:** Empirically test whether current-generation (2026) consumer IoT devices remain vulnerable to documented attack patterns, and quantify the security improvement provided by vendor-recommended and best-practice hardening.
 
 **Devices Under Test:**
+
 | Device | Category | Primary Attack Surface |
 |--------|----------|----------------------|
-| TP-Link Tapo C-Series IP Camera | Surveillance | Network, TLS, RTSP, firmware |
-| LG / Insignia Smart TV | Consumer Electronics | Traffic analysis, SSL/TLS, UPnP/DLNA |
-| eufy / Sifely Smart Lock | Physical Security | BLE, Sub-GHz RF, RFID |
+| Aqara 2K Indoor/Outdoor Security Camera | Surveillance | Network, TLS/cert validation, cloud auth, firmware |
+| LG 43UK6550PUB Smart TV | Consumer Electronics | webOS app service (CVE-2023-6317 chain), traffic analysis, SSL/TLS, UPnP/DLNA |
+| KUCACCI Smart Door Lock | Physical Security | BLE (TTLock-style app control), keypad, RFID fob |
 
 **Three-State Testing Framework:**
 - **State 1 — Factory Default:** Out-of-box, unchanged credentials, all features enabled
@@ -103,7 +104,21 @@ sudo bash scripts/network/recon.sh --iface eth0 --duration 3600 --out experiment
 
 # 4. Run TLS validation check
 python scripts/analysis/tls_checker.py --target 192.168.100.X --out experiments/ip-camera/logs/
+
+# 5. Test default/weak credentials (network-attached devices only — see notes below)
+sudo bash scripts/network/credential_test.sh --target 192.168.100.X --label cam-s1 --out experiments/ip-camera/logs/
+
+# 6. RF testing — Sub-GHz capture/replay/jamming (Flipper Zero, manual-guided workflow)
+bash scripts/rf/subghz_capture.sh --label lock-s1 --out experiments/smart-lock/logs/
+
+# 7. RF testing — Zigbee capture (HackRF One, manual-guided workflow)
+sudo bash scripts/rf/zigbee_sniff.sh --channel 15 --label device-s1 --out experiments/ip-camera/logs/
 ```
+
+**Device-specific notes:**
+- `credential_test.sh` does not apply to the KUCACCI lock (no network-layer credential surface) — use `scripts/rf/ble_scan.sh` instead.
+- The Aqara camera is cloud-account-gated by design; expect closed local admin ports on recon — this is a valid, documentable State 1 finding, not a script failure.
+- `subghz_capture.sh` and `zigbee_sniff.sh` are semi-interactive (Flipper Zero and HackRF+GNU Radio lack stable capture CLIs) — they walk you through manual steps and log structured results.
 
 > **⚠️ Legal Notice:** All testing must be performed on devices you own, on an isolated network with no connection to third-party systems. See [`docs/legal-ethics.md`](docs/legal-ethics.md) for full compliance guidance.
 
