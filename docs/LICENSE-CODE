@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2026 [Your Name]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files contained in the
+`scripts/` directory of this repository (the "Software"), to deal in the
+Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+---
+
+IMPORTANT — RESEARCH TOOL DISCLAIMER:
+
+The scripts in this repository (network attack tooling, RF capture/replay
+utilities, credential testing scripts, and analysis tools) were developed
+for academic security research purposes only, to be run exclusively against
+devices owned by the researcher within an isolated, controlled test
+environment. See `docs/legal-ethics.md` for the full ethical and legal
+compliance framework under which this research was conducted.
+
+The MIT License above governs reuse of the code itself. It does NOT
+constitute authorization, endorsement, or encouragement to use these scripts
+against any device, network, or system without explicit ownership and
+authorization to test it. Users of this code are solely responsible for
+ensuring their own use complies with the Computer Fraud and Abuse Act
+(18 U.S.C. § 1030), FCC regulations (47 C.F.R. Part 15), the Wiretap Act
+(18 U.S.C. § 2511), and all other applicable laws in their jurisdiction.
