@@ -1,4 +1,4 @@
-# IoT Security Research — Consumer Device Vulnerability Assessment (2026)
+# IoT Security Research: Consumer Device Vulnerability Assessment (2026)
 
 A hands-on penetration testing study evaluating consumer IoT devices across three security configurations, measuring whether manufacturer-recommended and best-practice hardening provide meaningful protection against documented attack vectors.
 
@@ -17,9 +17,9 @@ A hands-on penetration testing study evaluating consumer IoT devices across thre
 | KUCACCI Smart Door Lock | Physical Security | BLE (TTLock-style app control), keypad, RFID fob |
 
 **Three-State Testing Framework:**
-- **State 1 — Factory Default:** Out-of-box, unchanged credentials, all features enabled
-- **State 2 — Vendor-Recommended Hardening:** Manufacturer security guide followed, firmware updated
-- **State 3 — Best-Practice Hardening:** NIST SP 800-213 + ETSI EN 303 645 + OWASP IoT Top 10 applied
+- **State 1 : Factory Default:** Out-of-box, unchanged credentials, all features enabled
+- **State 2 : Vendor-Recommended Hardening:** Manufacturer security guide followed, firmware updated
+- **State 3 : Best-Practice Hardening:** NIST SP 800-213 + ETSI EN 303 645 + OWASP IoT Top 10 applied
 
 **Standards Alignment:** NIST SP 800-213 · ETSI EN 303 645 · OWASP IoT Top 10 · California SB-327
 
@@ -105,20 +105,20 @@ sudo bash scripts/network/recon.sh --iface eth0 --duration 3600 --out experiment
 # 4. Run TLS validation check
 python scripts/analysis/tls_checker.py --target 192.168.100.X --out experiments/ip-camera/logs/
 
-# 5. Test default/weak credentials (network-attached devices only — see notes below)
+# 5. Test default/weak credentials (network-attached devices only : see notes below)
 sudo bash scripts/network/credential_test.sh --target 192.168.100.X --label cam-s1 --out experiments/ip-camera/logs/
 
-# 6. RF testing — Sub-GHz capture/replay/jamming (Flipper Zero, manual-guided workflow)
+# 6. RF testing : Sub-GHz capture/replay/jamming (Flipper Zero, manual-guided workflow)
 bash scripts/rf/subghz_capture.sh --label lock-s1 --out experiments/smart-lock/logs/
 
-# 7. RF testing — Zigbee capture (HackRF One, manual-guided workflow)
+# 7. RF testing : Zigbee capture (HackRF One, manual-guided workflow)
 sudo bash scripts/rf/zigbee_sniff.sh --channel 15 --label device-s1 --out experiments/ip-camera/logs/
 ```
 
 **Device-specific notes:**
-- `credential_test.sh` does not apply to the KUCACCI lock (no network-layer credential surface) — use `scripts/rf/ble_scan.sh` instead.
-- The Aqara camera is cloud-account-gated by design; expect closed local admin ports on recon — this is a valid, documentable State 1 finding, not a script failure.
-- `subghz_capture.sh` and `zigbee_sniff.sh` are semi-interactive (Flipper Zero and HackRF+GNU Radio lack stable capture CLIs) — they walk you through manual steps and log structured results.
+- `credential_test.sh` does not apply to the KUCACCI lock (no network-layer credential surface) : use `scripts/rf/ble_scan.sh` instead.
+- The Aqara camera is cloud-account-gated by design; expect closed local admin ports on recon : this is a valid, documentable State 1 finding, not a script failure.
+- `subghz_capture.sh` and `zigbee_sniff.sh` are semi-interactive (Flipper Zero and HackRF+GNU Radio lack stable capture CLIs) : they walk you through manual steps and log structured results.
 
 > **⚠️ Legal Notice:** All testing must be performed on devices you own, on an isolated network with no connection to third-party systems. See [`docs/legal-ethics.md`](docs/legal-ethics.md) for full compliance guidance.
 
@@ -146,12 +146,12 @@ Adapted from CVSS with IoT-specific criteria:
 
 Full citations are in [`docs/references.md`](docs/references.md). Key sources:
 
-- Antonakakis et al. (2017) — *Understanding the Mirai Botnet*
-- NIST SP 800-213 — *IoT Device Cybersecurity Guidance*
-- ETSI EN 303 645 — *Cyber Security for Consumer IoT: Baseline Requirements*
+- Antonakakis et al. (2017) : *Understanding the Mirai Botnet*
+- NIST SP 800-213 : *IoT Device Cybersecurity Guidance*
+- ETSI EN 303 645 : *Cyber Security for Consumer IoT: Baseline Requirements*
 - OWASP IoT Top 10
-- Liu et al. (2024) — *Samba: Detecting SSL/TLS API Misuses in IoT Binary Applications*
-- Paracha et al. (2021) — *IoTLS: Understanding TLS Usage in Consumer IoT Devices*
+- Liu et al. (2024) : *Samba: Detecting SSL/TLS API Misuses in IoT Binary Applications*
+- Paracha et al. (2021) : *IoTLS: Understanding TLS Usage in Consumer IoT Devices*
 
 ---
 
