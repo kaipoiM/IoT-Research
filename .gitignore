@@ -1,0 +1,107 @@
+# =============================================================================
+# .gitignore — IoT Security Research Repository
+# =============================================================================
+# Critical: this file must be committed BEFORE any real test data is generated.
+# A careless `git add .` without this in place could expose captured credentials,
+# packet captures, or RF signal files publicly.
+# =============================================================================
+
+# ── Captured test data — NEVER commit these ──────────────────────────────────
+datasets/pcaps/*.pcap
+datasets/pcaps/*.pcapng
+datasets/pcaps/*.cap
+datasets/rf-captures/*.sub
+datasets/rf-captures/*.iq
+datasets/rf-captures/*.raw
+datasets/rf-captures/*.wav
+datasets/firmware/*.bin
+datasets/firmware/*.img
+datasets/firmware/*.squashfs
+datasets/firmware/*.gz
+
+# Allow directory structure to persist in repo without contents
+!datasets/pcaps/.gitkeep
+!datasets/rf-captures/.gitkeep
+!datasets/firmware/.gitkeep
+
+# ── Test logs — sanitize before committing ───────────────────────────────────
+# Raw logs go here during active testing; only sanitized versions get committed.
+# See docs/legal-ethics.md Section D for sanitization requirements.
+experiments/*/logs/*.log
+experiments/*/logs/raw/
+
+# Sanitized JSON test logs ARE committed (they belong in the repo after review)
+!experiments/*/logs/*.json
+
+# SSLsplit / MITM output directories (contain intercepted traffic)
+**/sslsplit_logs/
+**/mitm_output/
+**/hydra_*.txt
+
+# ── Credentials and secrets ───────────────────────────────────────────────────
+# WPA2 passphrases, API keys, account credentials
+*.env
+.env.*
+secrets.txt
+credentials.txt
+**/allowed_macs         # hostapd MAC allowlist contains device MACs — keep local
+**/hostapd.conf         # may contain WPA2 passphrase — keep local, use hostapd.conf.example instead
+
+# ── Python / analysis tooling ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ── OS and editor artifacts ───────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Kali / pentest tool output ────────────────────────────────────────────────
+*.nmap
+*.gnmap
+*.xml.nmap
+nmap-output/
+*.masscan
+
+# ── HackRF / GNU Radio artifacts ─────────────────────────────────────────────
+*.grc.bak
+*.sigmf-data
+*.sigmf-meta
+
+# ── Temporary / scratch files ─────────────────────────────────────────────────
+/tmp/
+scratch/
+*.tmp
+*.bak
+*.orig
