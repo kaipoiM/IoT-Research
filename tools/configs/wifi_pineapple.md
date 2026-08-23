@@ -22,7 +22,7 @@
 | Allowlisted MAC(s) | _fill in — MAC of each device under test, added/removed as needed_ |
 | WPA2/WPA3 mode (legit test network, non-evil-twin tests) | _fill in_ |
 | Physical placement | _fill in location — confirm signal containment to test area_ |
-| Internet uplink | Disabled during active testing |
+| Internet uplink | **Never** — the Pineapple is a test/attack tool, not network infrastructure. The isolated `IoTSecTest` network is provided by the Raspberry Pi 3B+ router (see `tools/configs/raspberry_pi_router.md`), not the Pineapple. Do not configure the Pineapple to pass traffic through to the house network under any circumstances — this would bridge the test environment to production, violating `docs/legal-ethics.md` isolation requirements. |
 
 ---
 
