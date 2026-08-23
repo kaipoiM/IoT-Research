@@ -1,6 +1,6 @@
 Creative Commons Attribution 4.0 International (CC BY 4.0)
 
-Copyright (c) 2026 [Your Name]
+Copyright (c) 2026 Kaipo'i Murray
 
 This work (research documentation, methodology, written analysis, test plans,
 and reports contained in this repository, excluding the contents of the
