@@ -1,151 +1,207 @@
-# Raspberry Pi 3B+ — IoTSecTest Router Configuration
+# Raspberry Pi 4B — IoTSecTest Router Configuration
 
 ## Device Info
 
 | Field | Value |
 |-------|-------|
-| **Model** | Raspberry Pi 3B+ (1GB RAM) |
-| **Onboard WiFi** | BCM43438 — 2.4GHz only (no 5GHz support) |
-| **Onboard Ethernet** | 10/100 (sufficient for this role — not internet-facing) |
-| **OS** | Raspberry Pi OS Lite (recommended — headless, no desktop overhead needed) |
-| **Role** | Dedicated, isolated AP for `IoTSecTest` — no WAN uplink, no bridge to house network |
+| **Model** | Raspberry Pi 4B (2GB RAM) |
+| **OS** | Raspberry Pi OS Lite 64-bit (Bookworm / Debian 13) |
+| **Kernel** | 6.18.34+rpt-rpi-v8 |
+| **Onboard WiFi** | BCM4345/6 (brcmfmac driver) — 2.4GHz + 5GHz |
+| **Onboard Ethernet** | Gigabit (eth0) |
+| **USB WiFi Adapter** | 650Mbps USB adapter, Realtek RTL8821CU (rtw88_8821cu driver) — wlan1, available for monitor mode |
+| **AP interface** | wlan0 (onboard) — 5GHz, channel 149 |
+| **SD Card** | SanDisk Ultra 64GB microSD |
 
-**2.4GHz-only note:** confirm each device under test can associate on 2.4GHz. Most consumer IoT devices (cameras, locks, sensors) default to 2.4GHz specifically because it's the common denominator, so this is unlikely to be a blocker, but verify during Phase 1 recon rather than assuming.
+**Note on previous hardware:** A Raspberry Pi 3B+ was attempted first but found to have corrosion damage. The 3B+ also has a known SD card compatibility issue with Samsung EVO/EVO+ cards (single-blink boot failure). The Pi 4B with SanDisk Ultra resolved both issues.
 
 ---
 
-## Why This Setup Satisfies Isolation Requirements
+## Network Architecture
 
-Per `docs/legal-ethics.md`, the test network must have "no connection to production networks, Internet services, or third-party systems." This Pi build satisfies that architecturally, not just by configuration toggle:
+```
+[IoT Devices / Test Laptops]
+        |
+    wlan0 (IoTSecTest AP — 192.168.100.1/24)
+        |
+  Raspberry Pi 4B
+        |
+    eth0 — SSH admin access only (house network)
+           NOT bridged or routed to wlan0
+```
 
-- The Pi's Ethernet port is **not connected to the house network or the Archer AX4400** at all — leave it unplugged, or plug it into an isolated switch with no other uplink.
-- No WAN interface is configured in software. There is no "internet access" setting to accidentally leave on, unlike a consumer router's guest network — the Pi simply has no path out.
-- This is a stronger isolation guarantee than the Archer AX4400 guest-network approach, since it doesn't rely on a single toggle in vendor firmware you don't control.
+The Pi's eth0 connects to the house network (Archer AX4400) for SSH administration only. No routing or bridging exists between eth0 and wlan0 — test devices on wlan0 have no path to the internet or household LAN. Confirmed via mandatory ping test before every session.
 
 ---
 
 ## Software Stack
 
-| Component | Purpose |
-|-----------|---------|
-| `hostapd` | Runs the WiFi access point (SSID `IoTSecTest`) |
-| `dnsmasq` | DHCP + DNS for the isolated test subnet |
-| `iptables` (optional) | Only needed if you want the Pi to also NAT/log traffic between subnet devices; not needed for a fully offline test segment |
-
-Install:
-```bash
-sudo apt update
-sudo apt install hostapd dnsmasq
-sudo systemctl unmask hostapd
-```
+| Component | Version | Role |
+|-----------|---------|------|
+| hostapd | 2:2.10-24 | WiFi AP |
+| dnsmasq | 2.91-1+deb13u1 | DHCP + DNS |
+| iotsectest.service | custom | Boot-time rfkill unblock + static IP |
 
 ---
 
-## Network Configuration
+## Key Bookworm-Specific Notes
 
-### Static IP for the Pi's WiFi interface (wlan0)
+Raspberry Pi OS Bookworm differs significantly from older Pi OS versions — these issues will recur if the Pi is rebuilt from scratch:
 
-Edit `/etc/dhcpcd.conf`, add:
+1. **dhcpcd is not present** — static IP must be assigned via `ip addr` in a custom systemd service, not `/etc/dhcpcd.conf`
+2. **wpa_supplicant runs by default and holds WiFi interfaces** — disable it: `sudo systemctl stop wpa_supplicant && sudo systemctl disable wpa_supplicant`
+3. **NetworkManager marks WiFi as unmanaged by default** — fix via `managed=true` in `/etc/NetworkManager/NetworkManager.conf` and an unmanaged.conf excluding wlan0
+4. **rfkill soft-blocks WiFi on every boot** — must be unblocked via custom systemd service before hostapd starts; manual `rfkill unblock wifi` does not persist across reboots
+5. **hostapd is masked by default on Debian** — unmask before enabling: `sudo systemctl unmask hostapd`
+
+---
+
+## Configuration Files
+
+### /etc/NetworkManager/NetworkManager.conf
 ```
-interface wlan0
-    static ip_address=192.168.100.1/24
-    nohook wpa_supplicant
+[main]
+plugins=ifupdown,keyfile
+
+[ifupdown]
+managed=true
 ```
 
-### dnsmasq — DHCP scope for test devices
-
-Edit `/etc/dnsmasq.conf`:
+### /etc/NetworkManager/conf.d/unmanaged.conf
 ```
-interface=wlan0
-dhcp-range=192.168.100.50,192.168.100.150,255.255.255.0,24h
-domain=iotsectest.local
-address=/#/192.168.100.1
+[keyfile]
+unmanaged-devices=interface-name:wlan0
 ```
 
-Note: `address=/#/192.168.100.1` resolves ALL DNS queries to the Pi itself, which is a deliberate choice — since there is no WAN uplink, devices under test cannot reach real DNS servers or the internet regardless, but this makes that explicit and gives you a place to observe/log every DNS query a device attempts to make (useful for Phase 4 privacy analysis groundwork, even though real traffic-baseline analysis happens via `scripts/analysis/traffic_baseline.py` on captured pcaps).
-
-### hostapd — AP configuration
-
-Edit `/etc/hostapd/hostapd.conf`:
+### /etc/hostapd/hostapd.conf
 ```
 interface=wlan0
 driver=nl80211
 ssid=IoTSecTest
-hw_mode=g
-channel=6
-wmm_enabled=0
+hw_mode=a
+channel=149
+wmm_enabled=1
+ieee80211n=1
+ieee80211ac=1
+ieee80211d=1
+ieee80211h=1
 macaddr_acl=1
 accept_mac_file=/etc/hostapd/allowed_macs
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
-wpa_passphrase=<CHOOSE A STRONG PASSPHRASE — do not commit to repo>
+wpa_passphrase=<PASSPHRASE — do not commit to repo>
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
+country_code=US
 ```
 
-Point hostapd to this config in `/etc/default/hostapd`:
+### /etc/default/hostapd
 ```
 DAEMON_CONF="/etc/hostapd/hostapd.conf"
 ```
 
-### MAC allowlist (`macaddr_acl=1` above enforces this)
-
-Create `/etc/hostapd/allowed_macs`:
+### /etc/dnsmasq.conf
 ```
-# One MAC per line — add each device as it's brought into testing
-# Aqara 2K Camera:
-# LG 43UK6550PUB TV:
-# KUCACCI Lock (if WiFi-gateway equipped):
-# Kali Linux laptop:
+interface=wlan0
+dhcp-range=192.168.100.50,192.168.100.150,255.255.255.0,24h
+domain=iotsectest.local
+address=/#/192.168.100.1
+bind-interfaces
 ```
-Populate from the table in `docs/test-network-setup-checklist.md` Section 2.
 
-### Enable services
+Note: `address=/#/192.168.100.1` resolves all DNS queries back to the Pi — test devices cannot reach external DNS regardless, but this also lets you see every DNS query a device attempts in dnsmasq logs, which is useful for Phase 1 privacy baseline work.
+
+### /etc/systemd/system/iotsectest.service
+```ini
+[Unit]
+Description=IoTSecTest AP Setup
+After=network.target
+Before=hostapd.service dnsmasq.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'rfkill unblock wifi; rfkill unblock all; ip addr add 192.168.100.1/24 dev wlan0 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### /etc/systemd/system/hostapd.service.d/override.conf
+```ini
+[Unit]
+After=iotsectest.service
+Requires=iotsectest.service
+```
+
+### /etc/hostapd/allowed_macs
+One MAC per line. Add each device before it attempts to connect — the allowlist is enforced at association, so an unlisted device will associate briefly then immediately disassociate (visible in hostapd logs as associated/disassociated pairs with no DHCP exchange following).
+
+---
+
+## MAC Allowlist
+
+| Device | MAC Address | Date Added |
+|--------|-------------|------------|
+| Parrot OS laptop (wlp3s0, Intel 8265) | 18:1d:ea:ab:e1:d6 | 2026-09-16 |
+| Pixel 8 (monitoring/verification) | 5c:33:7b:e7:c2:e8 | 2026-09-03 |
+| Aqara 2K Camera | _fill in during Phase 1_ | |
+| LG 43UK6550PUB TV | _fill in during Phase 1_ | |
+| KUCACCI Smart Lock (if WiFi gateway equipped) | _fill in during Phase 1_ | |
+
+---
+
+## Services Enabled on Boot
+
 ```bash
+sudo systemctl enable iotsectest.service
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
-sudo systemctl start hostapd
-sudo systemctl start dnsmasq
 ```
+
+Startup order enforced by systemd: `iotsectest.service` (rfkill unblock + static IP) → `hostapd` (AP) → `dnsmasq` (DHCP)
 
 ---
 
-## Verification (run every session, not just once)
+## Mandatory Verification (run before every test session)
 
+SSH into the Pi and confirm services are running:
 ```bash
-# From a device connected to IoTSecTest:
+sudo systemctl status hostapd dnsmasq iotsectest
+```
+
+From any device connected to IoTSecTest:
+```bash
 ping -c 4 8.8.8.8
-# Expected: 100% packet loss — confirms no path to internet exists
+# Expected: 100% packet loss
 ```
 
-If this ever succeeds, something has bridged the test network to a live uplink — stop testing immediately and investigate before proceeding. This is the same check specified in `docs/test-network-setup-checklist.md` Section 1; the Pi setup doesn't change that requirement, it just changes how confident you can be that the check will keep passing.
+If the ping succeeds, stop testing immediately — routing has changed. Do not proceed until isolation is re-confirmed.
 
 ---
 
-## Packet Capture on the Pi Itself (optional, supplements Kali laptop capture)
+## USB WiFi Adapter (wlan1 — RTL8821CU)
 
-Since the Pi sees all traffic as the AP, it can also run a baseline tcpdump if useful for redundancy:
+Available as a secondary radio for monitor mode or packet injection. Not used for the AP role. Plug in when needed, leave unplugged otherwise.
+
+To put wlan1 in monitor mode:
 ```bash
-sudo tcpdump -i wlan0 -w /home/pi/captures/baseline_$(date +%Y%m%d_%H%M%S).pcap
+sudo ip link set wlan1 down
+sudo iw dev wlan1 set type monitor
+sudo ip link set wlan1 up
 ```
-Transfer captures off the Pi regularly (SCP or SD card removal) — 1GB RAM and typical SD card storage will fill up faster than the Kali laptop's dedicated capture storage.
-
----
-
-## Known Limitations of This Setup
-
-- **2.4GHz only** — if any device under test requires 5GHz to expose its full feature set (unlikely for this device set, but worth confirming), this Pi can't host that band. A USB WiFi adapter with 5GHz + AP mode support would be needed as a workaround.
-- **Single Ethernet port** — if you want the Pi to also route to a second isolated segment (e.g., separating RF-only devices from WiFi devices), you'd need a USB Ethernet adapter or manage it entirely over WiFi.
-- **1GB RAM** — fine for hostapd/dnsmasq/tcpdump simultaneously, but avoid also running heavy analysis scripts on the Pi itself; keep `pcap_parser.py`, `tls_checker.py`, etc. on the Kali laptop as originally planned.
 
 ---
 
 ## Known Issues / Troubleshooting Log
 
-_Add entries as you encounter and resolve issues during setup._
-
 | Date | Issue | Resolution |
 |------|-------|------------|
-| | | |
+| 2026-09-03 | Samsung EVO microSD — single blink boot failure on Pi 3B+ | Known compatibility issue with Pi 3B+ SD controller; replaced with SanDisk Ultra on Pi 4B |
+| 2026-09-03 | Pi 3B+ board had corrosion damage | Replaced with Pi 4B |
+| 2026-09-03 | wpa_supplicant holding wlan0/wlan1, NM showing both as "unavailable" | Disabled wpa_supplicant; set NM managed=true; added unmanaged.conf |
+| 2026-09-03 | rfkill soft-blocking WiFi on boot | Created iotsectest.service to unblock before hostapd starts |
+| 2026-09-03 | dnsmasq dying silently after startup, no DHCP offers issued | dnsmasq started before wlan0 ready; fixed by service ordering |
+| 2026-09-16 | Parrot laptop (Intel 8265) associating but dropping after ~45s, no DHCP | Channel/band mismatch; switched to channel 149 with ieee80211n/ac + wmm_enabled=1 |
