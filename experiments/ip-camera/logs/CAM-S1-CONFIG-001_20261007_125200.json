@@ -1,0 +1,35 @@
+{
+  "test_id": "CAM-S1-CONFIG-001",
+  "device": "Aqara G100 Indoor/Outdoor Security Camera",
+  "state": 1,
+  "state_label": "Factory Default",
+  "phase": "1/2 (configuration integrity, discovered during Phase 2)",
+  "attack_code": "CONFIG",
+  "timestamp": "2026-10-07T12:47:00-10:00",
+  "timestamp_range": "2026-09-17T21:41:00-10:00 (Phase 1 baseline, toggle off) through 2026-10-07T12:52:00-10:00 (toggle on/off cycle)",
+  "target": {
+    "ip": "172.16.42.172",
+    "mac": "54:ef:44:90:8f:9c",
+    "firmware": "4.3.7_0006"
+  },
+  "method": "Three-state comparison: (1) Phase 1 baseline recon with Aqara Home app 'RTSP LAN Preview' toggle OFF (2026-09-17), (2) manual nmap re-check with toggle OFF confirmed (2026-10-07 12:47), (3) toggle switched ON, nmap re-check (12:50), (4) toggle switched back OFF, nmap re-check (12:52)",
+  "command": "nmap -p 8554 -Pn 172.16.42.172",
+  "result_by_state": [
+    {"toggle_state": "OFF (Phase 1 baseline, 2026-09-17)", "port_8554": "open", "service": "rtsp-alt"},
+    {"toggle_state": "OFF (confirmed, 2026-10-07 12:47)", "port_8554": "open", "service": "rtsp-alt"},
+    {"toggle_state": "ON (2026-10-07 12:50)", "port_8554": "open", "service": "rtsp-alt"},
+    {"toggle_state": "OFF (2026-10-07 12:52)", "port_8554": "open", "service": "rtsp-alt"}
+  ],
+  "result": "TCP/8554 remained open across all toggle states. The app-level 'RTSP LAN Preview' setting has no observable effect on whether the RTSP service listens on the network. It does, however, gate whether specific stream resources resolve (see CAM-S1-CRED-002: identical credentials/paths returned 404 with the toggle off and succeeded with the toggle on).",
+  "findings": [
+    {
+      "severity": "MEDIUM",
+      "issue": "The 'RTSP LAN Preview' toggle, presented to the user as the control for local RTSP exposure, does not disable the underlying network service. The port remains open and reachable regardless of toggle state, giving the user a false sense of control over their device's network exposure.",
+      "owasp": "I9 (Insecure Default Settings)",
+      "etsi": "5.1 (in spirit — user should have effective, not cosmetic, control over network-facing functionality not in active use)"
+    }
+  ],
+  "related_tests": ["CAM-S1-CRED-001", "CAM-S1-CRED-002"],
+  "evidence_files": [],
+  "notes": "Distinct from CAM-S1-CRED-002: this finding concerns network-level reachability only. Resource-level (path/credential) validity is toggle-dependent and is documented separately."
+}

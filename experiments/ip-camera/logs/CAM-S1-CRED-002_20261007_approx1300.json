@@ -1,0 +1,46 @@
+{
+  "test_id": "CAM-S1-CRED-002",
+  "device": "Aqara G100 Indoor/Outdoor Security Camera",
+  "state": 1,
+  "state_label": "Factory Default",
+  "phase": 2,
+  "attack_code": "CRED",
+  "timestamp": "2026-10-07T13:00:00-10:00",
+  "timestamp_note": "APPROXIMATE — operator should replace with exact time from terminal history/scrollback for the ch1/ch2/ch3 ffprobe success and the evidence frame capture.",
+  "target": {
+    "ip": "172.16.42.172",
+    "mac": "54:ef:44:90:8f:9c",
+    "firmware": "4.3.7_0006",
+    "rtsp_port": 8554
+  },
+  "method": "Local RTSP credentials (username: 655, password: 546) discovered via the Aqara Home app's device settings screen (operator-authenticated access to own cloud account/device). Tested with ffprobe (RTSP DESCRIBE + stream open) against channel paths /ch1, /ch2, /ch3, under two app-toggle states for 'RTSP LAN Preview'.",
+  "credentials_source": "Displayed in Aqara Home app, accessible only after authenticating to the researcher's own Aqara cloud account for this device. Not derived from any public default-credential wordlist.",
+  "credential_entropy": "3-digit numeric username x 3-digit numeric password = 1,000 x 1,000 = 1,000,000 possible combinations. No rate-limiting or lockout observed on the RTSP service during prior testing (CAM-S1-CRED-001, 45+ rapid sequential attempts).",
+  "result_by_toggle_state": [
+    {
+      "toggle_state": "OFF",
+      "paths_tested": ["", "/", "/0", "/1", "/11", "/12", "/stream1", "/live", "/h264", "/video1", "/profile1", "/0/av0", "/live/ch00_0"],
+      "result": "All paths returned RTSP 404 Stream Not Found (NOT 401) — credentials accepted by the auth layer, but no stream resource registered at any guessed path."
+    },
+    {
+      "toggle_state": "ON",
+      "paths_tested": ["/ch1", "/ch2", "/ch3"],
+      "result": "All three succeeded. Live stream metadata returned: ch1 (main) h264/aac, 2304x1296; ch2 (sub) h264/aac, 1280x720; ch3 (sub-sub) h264/aac, 640x360. Full authenticated video access confirmed via ffprobe; one evidence frame captured via ffmpeg from /ch1."
+    }
+  ],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "issue": "Local RTSP video streams (3 quality tiers) are fully accessible using a device-local username/password pair with only ~1,000,000 possible combinations and no observed rate-limiting, once the 'RTSP LAN Preview' feature is enabled. Any device on the local network segment (or reachable via the camera's network path) can authenticate and pull live video with trivial brute-force effort.",
+      "owasp": "I1 (Weak, Guessable, or Hardcoded Passwords)",
+      "etsi": "5.1 (no means of ensuring password/credential strength appropriate to risk)"
+    }
+  ],
+  "limitations": "Not established whether these credentials (655:546) are randomly generated per-device or fixed across all Aqara G100 units of this model/firmware version. This research tested a single unit and cannot distinguish a fleet-wide default from a per-device weak-random value without a second unit for comparison. State this limitation explicitly in any published findings; do not claim fleet-wide impact without further evidence.",
+  "mitigation_evidence": "Disabling 'RTSP LAN Preview' (State 3 best-practice hardening checklist item) prevents the specific stream-pull attack demonstrated here, since the stream resources return 404 when disabled (see toggle_state: OFF above). It does NOT reduce the device's network footprint — the port remains open regardless (see CAM-S1-CONFIG-001).",
+  "related_tests": ["CAM-S1-CRED-001", "CAM-S1-CONFIG-001"],
+  "evidence_files": [
+    "evidence_ch1_frame_<timestamp>.jpg (captured via ffmpeg, single frame grab — treat as sensitive, do not publish unredacted)"
+  ],
+  "notes": "This finding was only discovered because the operator found the credentials directly in the Aqara Home app's own UI, not via credential_test.sh's wordlist-based approach, which correctly returned a negative result in CAM-S1-CRED-001 since 655:546 is not a standard IoT default credential pattern."
+}

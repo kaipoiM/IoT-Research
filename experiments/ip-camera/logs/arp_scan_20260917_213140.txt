@@ -1,0 +1,6 @@
+Interface: wlp3s0, type: EN10MB, MAC: 18:1d:ea:ab:e1:d6, IPv4: 172.16.42.193
+Starting arp-scan 1.10.0 with 256 hosts (https://github.com/royhills/arp-scan)
+172.16.42.1	00:13:37:ab:a9:c4	Orient Power Home Network Ltd.
+
+1 packets received by filter, 0 packets dropped by kernel
+Ending arp-scan 1.10.0: 256 hosts scanned in 1.987 seconds (128.84 hosts/sec). 1 responded

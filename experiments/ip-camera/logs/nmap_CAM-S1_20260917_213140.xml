@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/bin/../share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.98 scan initiated Thu Sep 17 21:31:44 2026 as: nmap -sS -sV -sC -O -p- -Pn -&#45;open -&#45;version-intensity 9 -T4 -oX /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.xml -oN /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.txt 172.16.42.172 -->
+<nmaprun scanner="nmap" args="nmap -sS -sV -sC -O -p- -Pn -&#45;open -&#45;version-intensity 9 -T4 -oX /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.xml -oN /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.txt 172.16.42.172" start="1789716704" startstr="Thu Sep 17 21:31:44 2026" version="7.98" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="65535" services="1-65535"/>
+<verbose level="0"/>
+<debugging level="0"/>
+<hosthint><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="172.16.42.172" addrtype="ipv4"/>
+<address addr="54:EF:44:90:8F:9C" addrtype="mac" vendor="Lumi United Technology"/>
+<hostnames>
+</hostnames>
+</hosthint>
+<host starttime="1789716704" endtime="1789717279"><status state="up" reason="arp-response" reason_ttl="0"/>
+<address addr="172.16.42.172" addrtype="ipv4"/>
+<address addr="54:EF:44:90:8F:9C" addrtype="mac" vendor="Lumi United Technology"/>
+<hostnames>
+<hostname name="Camera-G100-8F9C.lan" type="PTR"/>
+</hostnames>
+<ports><extraports state="closed" count="65532">
+<extrareasons reason="reset" count="65532" proto="tcp" ports="1-8553,8555-25284,25286-54323,54325-65535"/>
+</extraports>
+<port protocol="tcp" portid="8554"><state state="open" reason="syn-ack" reason_ttl="64"/><service name="rtsp" product="D-Link DCS-2130 or Pelco IDE10DN webcam rtspd" devicetype="webcam" method="probed" conf="10"><cpe>cpe:/h:pelco:ide10dn</cpe></service><script id="rtsp-methods" output="OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, GET_PARAMETER, SET_PARAMETER"><elem>OPTIONS</elem>
+<elem>DESCRIBE</elem>
+<elem>SETUP</elem>
+<elem>TEARDOWN</elem>
+<elem>PLAY</elem>
+<elem>PAUSE</elem>
+<elem>GET_PARAMETER</elem>
+<elem>SET_PARAMETER</elem>
+</script></port>
+<port protocol="tcp" portid="25285"><state state="open" reason="syn-ack" reason_ttl="64"/></port>
+<port protocol="tcp" portid="54324"><state state="open" reason="syn-ack" reason_ttl="64"/><service name="unknown" servicefp="SF-Port54324-TCP:V=7.98%I=9%D=9/17%Time=6AACE905%P=x86_64-pc-linux-gnu%r(GenericLines,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(GetRequest,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(HTTPOptions,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(RTSPRequest,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(RPCCheck,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(DNSVersionBindReqTCP,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(DNSStatusRequestTCP,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(Hello,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(Help,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(SSLSessionReq,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(TerminalServerCookie,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(TLSSessionReq,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(SSLv23SessionReq,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(Kerberos,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(SMBProgNeg,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(X11Probe,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(FourOhFourRequest,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(LPDString,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(LDAPSearchReq,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(LDAPBindReq,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(SIPOptions,18,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(LANDesk-RC,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(TerminalServer,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(NCP,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(NotesRPC,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(DistCCD,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(JavaRMI,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(Radmin,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(NessusTPv12,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(NessusTPv11,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(NessusTPv10,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(WMSRequest,10,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(oracle-tns,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(mydoom,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(WWWOFFLEctrlstat,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;)%r(Verifier,8,&quot;\xfe\xef\x02\0\x01\x03\xee\xeb&quot;);" method="table" conf="3"/></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="8554"/>
+<portused state="closed" proto="tcp" portid="1"/>
+<portused state="closed" proto="udp" portid="34584"/>
+<osmatch name="Google Home device" accuracy="100" line="34381">
+<osclass type="media device" vendor="Google" osfamily="embedded" accuracy="100"/>
+</osmatch>
+<osmatch name="Linux 2.6.32 - 3.10" accuracy="100" line="59874">
+<osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="2.6.X" accuracy="100"><cpe>cpe:/o:linux:linux_kernel:2.6</cpe></osclass>
+<osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="3.X" accuracy="100"><cpe>cpe:/o:linux:linux_kernel:3</cpe></osclass>
+</osmatch>
+</os>
+<uptime seconds="4782" lastboot="Thu Sep 17 20:21:37 2026"/>
+<distance value="1"/>
+<tcpsequence index="262" difficulty="Good luck!" values="2CB082FE,148C9379,D1ACEFE1,AAF44EC4,241A7A40,19F39D10"/>
+<ipidsequence class="All zeros" values="0,0,0,0,0,0"/>
+<tcptssequence class="100HZ" values="745A1,745AB,745B4,745BF,745CD,745D6"/>
+<times srtt="39954" rttvar="28462" to="153802"/>
+</host>
+<runstats><finished time="1789717279" timestr="Thu Sep 17 21:41:19 2026" summary="Nmap done at Thu Sep 17 21:41:19 2026; 1 IP address (1 host up) scanned in 575.03 seconds" elapsed="575.03" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

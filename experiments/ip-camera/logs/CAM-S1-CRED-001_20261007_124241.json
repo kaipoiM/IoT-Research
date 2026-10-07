@@ -1,0 +1,44 @@
+{
+  "test_id": "CAM-S1-CRED-001",
+  "device": "Aqara G100 Indoor/Outdoor Security Camera",
+  "state": 1,
+  "state_label": "Factory Default",
+  "phase": 2,
+  "attack_code": "CRED",
+  "timestamp": "2026-10-07T12:42:41-10:00",
+  "target": {
+    "ip": "172.16.42.172",
+    "mac": "54:ef:44:90:8f:9c",
+    "firmware": "4.3.7_0006"
+  },
+  "method": "credential_test.sh (ffprobe/RTSP DESCRIBE variant) against standard default/weak/blank credential list",
+  "scope_tested": {
+    "http_https": "not exposed (no admin interface found)",
+    "ssh": "not exposed",
+    "telnet": "not exposed",
+    "rtsp_port": 8554,
+    "rtsp_note": "non-standard port; default 554 not in use"
+  },
+  "credentials_tested": [
+    "admin:admin", "admin:", "admin:1234", "admin:password", "root:root", ":"
+  ],
+  "control_probe": {
+    "credentials": "garbage/nonexistent (randomly generated per run)",
+    "result": "REJECTED_401",
+    "purpose": "distinguish genuine weak-credential finding from a no-auth-enforced finding"
+  },
+  "result": "All 6 standard default/weak/blank credential pairs rejected with RTSP 401 Unauthorized. Control probe (garbage credentials) also correctly rejected. No HTTP/HTTPS/SSH/Telnet admin interface exposed.",
+  "credentials_found": 0,
+  "findings": [
+    {
+      "severity": "INFO",
+      "issue": "No standard default/weak/blank credentials accepted on any exposed local surface. RTSP on TCP/8554 correctly enforces authentication against this credential set.",
+      "owasp": "N/A (negative result)",
+      "etsi": "N/A (negative result)"
+    }
+  ],
+  "methodology_note": "Initial testing used curl for RTSP probing and produced a false-positive 100% success rate (first via OPTIONS, which is unauthenticated by spec on virtually all RTSP servers; then via DESCRIBE, where curl's RTSP engine was independently found to misreport server auth status). Switched to ffprobe (FFmpeg's RTSP client) after cross-checking a single request against both tools and finding curl reported 200 while ffprobe correctly reported 401 for the same URL with no credentials. ffprobe result is the authoritative one reported here.",
+  "related_tests": ["CAM-S1-CONFIG-001", "CAM-S1-CRED-002"],
+  "evidence_files": [],
+  "notes": "This is a valid null result for the standard default-credential attack surface, not an absence of findings — see CAM-S1-CRED-002 for the device-specific local RTSP credential finding that this test's wordlist-based approach could not have found."
+}

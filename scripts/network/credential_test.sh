@@ -37,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --label)        LABEL="$2";           shift 2 ;;
     --out)          OUT_DIR="$2";         shift 2 ;;
     --http-port)    HTTP_PORT="$2";       shift 2 ;;
+    --rtsp-port)    RTSP_PORT="$2";       shift 2 ;;
     --extra-creds)  EXTRA_CREDS_FILE="$2"; shift 2 ;;
     --brute)        BRUTE_FORCE=true;     shift ;;
     *) echo "[ERROR] Unknown argument: $1"; exit 1 ;;
@@ -57,9 +58,13 @@ fail()    { echo "[$(date +%H:%M:%S)] ✗ FAILED : $*" | tee -a "$LOG_FILE"; }
 # Sources: Mirai source code, Shodan, common vendor defaults, CVE database
 #
 # NOTE ON CURRENT TEST DEVICES:
-#   Aqara 2K Camera — local admin credentials are not publicly documented;
-#     device is cloud-account-gated by design. Test for exposed local
-#     interfaces/services rather than assuming a local admin login exists.
+#   Aqara 2K Camera — Phase 1 recon (2026-09-17) found local RTSP OPEN on
+#     TCP/8554 (non-standard port, not the RTSP default of 554) with full
+#     OPTIONS/DESCRIBE/SETUP/PLAY method support. The device is NOT purely
+#     cloud-gated as initially assumed — run this script with
+#     --rtsp-port 8554 against this device, or local RTSP creds will be
+#     silently skipped (port-discovery scan below only checks $RTSP_PORT,
+#     which defaults to 554).
 #   LG TV (webOS)   — no local HTTP admin login by default; focus credential
 #     testing on any exposed local services (e.g., LG ThinQ/webOS dev mode
 #     if enabled) rather than a login form.
@@ -111,6 +116,7 @@ log ""
 # ── Step 1: Port/service discovery ────────────────────────────────────────────
 log "── Step 1: Service Discovery ──"
 OPEN_PORTS=$(nmap -p "$HTTP_PORT,$HTTPS_PORT,$SSH_PORT,$TELNET_PORT,$RTSP_PORT" \
+  -Pn \
   -oG - "$TARGET" 2>/dev/null | grep -oP '\d+/open' | grep -oP '^\d+' || true)
 log "Open relevant ports: ${OPEN_PORTS:-none found}"
 
@@ -160,40 +166,93 @@ if echo "$OPEN_PORTS" | grep -q "^${TELNET_PORT}$"; then
 fi
 
 # ── Step 5: RTSP stream access (IP cameras) ───────────────────────────────────
+# NOTE ON METHOD: this step uses ffprobe (FFmpeg's RTSP client), not curl.
+# curl's RTSP support is thin and was empirically confirmed unreliable for
+# authentication testing during this research (2026-10-07): curl reported
+# HTTP 200 on a DESCRIBE with garbage credentials against this exact camera,
+# while ffprobe — against the identical URL — correctly got a 401 Unauthorized
+# from the server. curl's RTSP engine does not faithfully relay real server
+# auth status here, so it cannot be trusted for this test. ffprobe's RTSP
+# client is mature (backs ffmpeg/ffplay) and its result was independently
+# verified to match the real server behavior.
+#
+# We run ONE control probe with a deliberately wrong/garbage credential before
+# the real credential list, to distinguish two different findings that look
+# identical if you only test "do known-default creds work":
+#   - Control succeeds too  -> NO AUTHENTICATION is enforced on the local RTSP
+#     stream at all (OWASP I2 / ETSI 5.1 & 5.6) — credentials are irrelevant,
+#     the stream is open to anyone on the local segment.
+#   - Control fails (401), default creds succeed -> genuine weak/default
+#     credential finding (OWASP I1 / ETSI 5.1).
 if echo "$OPEN_PORTS" | grep -q "^${RTSP_PORT}$"; then
   log ""
-  log "── Step 5: RTSP Stream Access Test ──"
-  log "NOTE: Aqara cameras are cloud-account-gated by design and may not expose"
-  log "local RTSP. If port 554 is closed, this is expected — document as such"
-  log "rather than a test failure, and rely on Phase 3 (MITM/cloud interception) instead."
+  log "── Step 5: RTSP Stream Access Test (port $RTSP_PORT) ──"
+  log "NOTE: Aqara camera confirmed exposing local RTSP on TCP/8554 per Phase 1"
+  log "recon (2026-09-17) — this is NOT the RTSP default port 554. If testing"
+  log "this device, confirm --rtsp-port 8554 was passed on the command line."
 
-  RTSP_PATHS=(
-    "/"
-    "/stream"
-    "/stream1"
-    "/live"
-    "/h264"
-    "/video.mp4"
-    "/cam/realmonitor"
-    "/user=admin&password=&channel=1&stream=0.sdp"
-    "/onvif1"
-  )
+  if ! command -v ffprobe &>/dev/null; then
+    log "⚠  ffprobe not found — RTSP credential test requires it (curl's RTSP"
+    log "   auth handling is unreliable, confirmed during this research)."
+    log "   Install: sudo apt install ffmpeg"
+  else
+    log "Probing via ffprobe/RTSP DESCRIBE (not curl — curl's RTSP auth handling"
+    log "was confirmed unreliable against this device on 2026-10-07)."
 
-  for CRED in "admin:admin" "admin:" "admin:1234" "admin:password" ":"; do
-    USER="${CRED%%:*}"
-    PASS="${CRED##*:}"
-    for PATH in "${RTSP_PATHS[@]}"; do
-      RTSP_URL="rtsp://${USER}:${PASS}@${TARGET}:${RTSP_PORT}${PATH}"
-      HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
-        --connect-timeout 3 \
-        -X OPTIONS \
-        "$RTSP_URL" 2>/dev/null || echo "000")
-      if [[ "$HTTP_CODE" == "200" ]]; then
-        success "RTSP stream accessible — $RTSP_URL"
-        echo "CREDENTIAL_FOUND: rtsp $TARGET $USER $PASS $PATH" >> "$LOG_FILE"
+    rtsp_probe() {
+      # Echoes ACCESS_GRANTED, REJECTED_401, or UNKNOWN:<tail of error output>
+      local url="$1"
+      local out
+      out=$(timeout 6 ffprobe -rtsp_transport tcp -v error \
+        -show_entries stream=codec_name,width,height \
+        -of default=noprint_wrappers=1 "$url" 2>&1)
+      if echo "$out" | grep -qi "401"; then
+        echo "REJECTED_401"
+      elif echo "$out" | grep -qi "codec_name="; then
+        echo "ACCESS_GRANTED"
+      else
+        echo "UNKNOWN:$(echo "$out" | tail -1)"
+      fi
+    }
+
+    # ── Control probe: deliberately wrong credential, root path ──────────────
+    CONTROL_USER="nosuchuser_$$"
+    CONTROL_PASS="wrongpass_$(date +%s)"
+    CONTROL_URL="rtsp://${CONTROL_USER}:${CONTROL_PASS}@${TARGET}:${RTSP_PORT}/"
+    CONTROL_RESULT=$(rtsp_probe "$CONTROL_URL")
+    log ""
+    log "Control probe (garbage credentials, root path): $CONTROL_RESULT"
+    if [[ "$CONTROL_RESULT" == "ACCESS_GRANTED" ]]; then
+      log "⚠  Control probe SUCCEEDED with garbage credentials — this RTSP endpoint"
+      log "   does not enforce authentication at all. Any credential result below"
+      log "   is a consequence of this, not evidence of weak/default creds."
+      echo "NO_AUTH_ENFORCED: rtsp $TARGET $RTSP_PORT (ffprobe succeeded with garbage creds: $CONTROL_USER:$CONTROL_PASS)" >> "$LOG_FILE"
+    elif [[ "$CONTROL_RESULT" == "REJECTED_401" ]]; then
+      log "Control probe correctly rejected (401) — auth appears enforced."
+      log "Any credential below that is ACCESS_GRANTED is a genuine finding."
+    else
+      log "Control probe returned unexpected result ($CONTROL_RESULT) — treat results below with caution."
+    fi
+
+    for CRED in "admin:admin" "admin:" "admin:1234" "admin:password" "root:root" ":"; do
+      USER="${CRED%%:*}"
+      PASS="${CRED##*:}"
+      RTSP_URL="rtsp://${USER}:${PASS}@${TARGET}:${RTSP_PORT}/"
+      RESULT=$(rtsp_probe "$RTSP_URL")
+      if [[ "$RESULT" == "ACCESS_GRANTED" ]]; then
+        success "RTSP stream access granted — ${USER}:${PASS}"
+        echo "CREDENTIAL_FOUND: rtsp $TARGET $USER $PASS /" >> "$LOG_FILE"
+      else
+        log "  ${USER}:${PASS} -> $RESULT"
       fi
     done
-  done
+
+    if [[ "$CONTROL_RESULT" == "ACCESS_GRANTED" ]]; then
+      log ""
+      log "⚠  Reminder: control probe above succeeded with garbage credentials."
+      log "   Treat any CREDENTIAL_FOUND lines as 'no auth enforced', not 'weak creds'."
+    fi
+  fi
 else
   log "RTSP port closed/filtered — expected for cloud-only camera architectures"
 fi
@@ -227,11 +286,23 @@ fi
 # ── Results summary ────────────────────────────────────────────────────────────
 log ""
 log "===== Credential Test Complete ====="
-FOUND_COUNT=$(grep -c "CREDENTIAL_FOUND" "$LOG_FILE" 2>/dev/null || echo 0)
+FOUND_COUNT=$(grep -c "CREDENTIAL_FOUND" "$LOG_FILE" 2>/dev/null) || FOUND_COUNT=0
+NO_AUTH_COUNT=$(grep -c "NO_AUTH_ENFORCED" "$LOG_FILE" 2>/dev/null) || NO_AUTH_COUNT=0
 log "Credentials found: $FOUND_COUNT"
 
-if [[ "$FOUND_COUNT" -gt 0 ]]; then
-  log "⚠  RESULT: Default/weak credential(s) accepted"
+if [[ "$NO_AUTH_COUNT" -gt 0 ]]; then
+  log "⚠  RESULT: RTSP endpoint enforces NO AUTHENTICATION at all (control probe"
+  log "   with garbage credentials succeeded). The $FOUND_COUNT CREDENTIAL_FOUND"
+  log "   line(s) above are a consequence of this, not evidence of weak/default"
+  log "   credentials specifically — report this as a no-auth finding."
+  log "   OWASP: I2 (Insecure Network Services) / I10 (Lack of Physical Hardening"
+  log "   context N/A — this is network-exposed, unauthenticated media access)"
+  log "   ETSI:  Provision 5.1 & 5.6 violation (no authentication mechanism on"
+  log "   a network-facing service)"
+elif [[ "$FOUND_COUNT" -gt 0 ]]; then
+  log "⚠  RESULT: Default/weak credential(s) accepted (control probe with"
+  log "   garbage credentials was correctly rejected — this is a genuine"
+  log "   credential-strength finding, not a no-auth artifact)"
   log "   OWASP: I1 (Weak, Guessable, or Hardcoded Passwords)"
   log "   ETSI:  Provision 5.1 violation (no universal default passwords)"
 else

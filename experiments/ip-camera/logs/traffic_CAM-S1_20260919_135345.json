@@ -1,0 +1,28 @@
+{
+  "test_id": "TRAFFIC-CAM-S1-20260919_135345",
+  "pcap_file": "/home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs/baseline_CAM-S1_20260917_213140.pcap",
+  "timestamp": "2026-09-19T13:53:45.319425",
+  "findings": [],
+  "total_packets": 4527,
+  "timing_analysis": {
+    "capture_duration_seconds": 86370.98335695267,
+    "avg_inter_packet_interval": 19.0833,
+    "potential_metadata_leakage": false
+  },
+  "protocol_distribution": {
+    "UDP:10008": 2779
+  },
+  "top_destinations": [
+    {
+      "ip": "230.0.0.1",
+      "bytes": 694750
+    }
+  ],
+  "dns_queries_total": 0,
+  "unique_domains": 0,
+  "tracking_domains_contacted": {},
+  "tracking_domain_count": 0,
+  "plaintext_credential_hits": 0,
+  "plaintext_credential_samples": [],
+  "total_bytes_captured": 694750
+}

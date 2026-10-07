@@ -12,9 +12,9 @@
 set -euo pipefail
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-IFACE="eth0"
+IFACE="wlp3s0"
 TARGET=""
-NETWORK="192.168.100.0/24"
+NETWORK="172.16.42.0/24"
 DURATION=3600       # seconds for passive traffic capture
 OUT_DIR="./output"
 DEVICE_LABEL="device"
@@ -61,8 +61,13 @@ if [[ -n "$TARGET" ]]; then
   NMAP_XML="$OUT_DIR/nmap_${DEVICE_LABEL}_${TIMESTAMP}.xml"
   NMAP_OUT="$OUT_DIR/nmap_${DEVICE_LABEL}_${TIMESTAMP}.txt"
 
+  log "Warming ARP cache before scan (camera radio intermittently misses cold ARP requests) ..."
+  ping -c 2 -W 1 "$TARGET" >/dev/null 2>&1 || true
+  sleep 1
+
   log "Full TCP SYN scan + service/version detection + default scripts ..."
   nmap -sS -sV -sC -O -p- \
+    -Pn \
     --open \
     --version-intensity 9 \
     -T4 \
@@ -95,10 +100,18 @@ fi
 
 # SSDP discovery for UPnP devices
 SSDP_OUT="$OUT_DIR/ssdp_${TIMESTAMP}.txt"
-log "Sending SSDP M-SEARCH for UPnP devices ..."
-python3 - <<'PYEOF' 2>/dev/null | tee "$SSDP_OUT" || true
-import socket, time
+log "Sending SSDP M-SEARCH for UPnP devices (bound to $IFACE) ..."
 
+# Resolve the local IP on the attack interface so the SSDP socket binds there
+# instead of egressing on whatever interface the default route picks.
+LOCAL_IP=$(ip -4 -o addr show "$IFACE" | awk '{print $4}' | cut -d/ -f1 | head -1)
+if [[ -z "$LOCAL_IP" ]]; then
+  log "⚠  Could not resolve local IP on $IFACE — skipping SSDP discovery"
+else
+  python3 - "$LOCAL_IP" <<'PYEOF' 2>/dev/null | tee "$SSDP_OUT" || true
+import socket, sys, time
+
+local_ip = sys.argv[1]
 SSDP_ADDR = "239.255.255.250"
 SSDP_PORT = 1900
 msg = (
@@ -109,6 +122,7 @@ msg = (
     "ST: ssdp:all\r\n\r\n"
 )
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+sock.bind((local_ip, 0))
 sock.settimeout(5)
 sock.sendto(msg.encode(), (SSDP_ADDR, SSDP_PORT))
 start = time.time()
@@ -119,6 +133,7 @@ while time.time() - start < 5:
     except socket.timeout:
         break
 PYEOF
+fi
 
 # ── Phase 1d: Passive Traffic Baseline ────────────────────────────────────────
 log ""

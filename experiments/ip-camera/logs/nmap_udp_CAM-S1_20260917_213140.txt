@@ -1,0 +1,9 @@
+# Nmap 7.98 scan initiated Thu Sep 17 21:41:19 2026 as: nmap -sU -p 1883,5683,5353,123,161,1900 --open -T4 -oN /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_udp_CAM-S1_20260917_213140.txt 172.16.42.172
+Nmap scan report for Camera-G100-8F9C.lan (172.16.42.172)
+Host is up (0.0062s latency).
+Not shown: 5 closed udp ports (port-unreach)
+PORT     STATE SERVICE
+5353/udp open  zeroconf
+MAC Address: 54:EF:44:90:8F:9C (Lumi United Technology)
+
+# Nmap done at Thu Sep 17 21:41:19 2026 -- 1 IP address (1 host up) scanned in 0.23 seconds

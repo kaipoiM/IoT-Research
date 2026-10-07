@@ -1,0 +1,50 @@
+# Nmap 7.98 scan initiated Thu Sep 17 21:31:44 2026 as: nmap -sS -sV -sC -O -p- -Pn --open --version-intensity 9 -T4 -oX /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.xml -oN /home/kaipoim/Desktop/IoT-Research/experiments/ip-camera/logs//nmap_CAM-S1_20260917_213140.txt 172.16.42.172
+Nmap scan report for Camera-G100-8F9C.lan (172.16.42.172)
+Host is up (0.040s latency).
+Not shown: 65532 closed tcp ports (reset)
+PORT      STATE SERVICE VERSION
+8554/tcp  open  rtsp    D-Link DCS-2130 or Pelco IDE10DN webcam rtspd
+|_rtsp-methods: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, GET_PARAMETER, SET_PARAMETER
+25285/tcp open  unknown
+54324/tcp open  unknown
+1 service unrecognized despite returning data. If you know the service/version, please submit the following fingerprint at https://nmap.org/cgi-bin/submit.cgi?new-service :
+SF-Port54324-TCP:V=7.98%I=9%D=9/17%Time=6AACE905%P=x86_64-pc-linux-gnu%r(G
+SF:enericLines,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(GetRequest,8,"\xfe\xe
+SF:f\x02\0\x01\x03\xee\xeb")%r(HTTPOptions,8,"\xfe\xef\x02\0\x01\x03\xee\x
+SF:eb")%r(RTSPRequest,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(RPCCheck,8,"\x
+SF:fe\xef\x02\0\x01\x03\xee\xeb")%r(DNSVersionBindReqTCP,8,"\xfe\xef\x02\0
+SF:\x01\x03\xee\xeb")%r(DNSStatusRequestTCP,8,"\xfe\xef\x02\0\x01\x03\xee\
+SF:xeb")%r(Hello,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(Help,8,"\xfe\xef\x0
+SF:2\0\x01\x03\xee\xeb")%r(SSLSessionReq,8,"\xfe\xef\x02\0\x01\x03\xee\xeb
+SF:")%r(TerminalServerCookie,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(TLSSess
+SF:ionReq,10,"\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb
+SF:")%r(SSLv23SessionReq,10,"\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\
+SF:x01\x03\xee\xeb")%r(Kerberos,10,"\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef
+SF:\x02\0\x01\x03\xee\xeb")%r(SMBProgNeg,10,"\xfe\xef\x02\0\x01\x03\xee\xe
+SF:b\xfe\xef\x02\0\x01\x03\xee\xeb")%r(X11Probe,8,"\xfe\xef\x02\0\x01\x03\
+SF:xee\xeb")%r(FourOhFourRequest,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(LPD
+SF:String,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(LDAPSearchReq,8,"\xfe\xef\
+SF:x02\0\x01\x03\xee\xeb")%r(LDAPBindReq,8,"\xfe\xef\x02\0\x01\x03\xee\xeb
+SF:")%r(SIPOptions,18,"\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x0
+SF:3\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb")%r(LANDesk-RC,8,"\xfe\xef\x02\
+SF:0\x01\x03\xee\xeb")%r(TerminalServer,8,"\xfe\xef\x02\0\x01\x03\xee\xeb"
+SF:)%r(NCP,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(NotesRPC,8,"\xfe\xef\x02\
+SF:0\x01\x03\xee\xeb")%r(DistCCD,10,"\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xe
+SF:f\x02\0\x01\x03\xee\xeb")%r(JavaRMI,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")
+SF:%r(Radmin,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(NessusTPv12,8,"\xfe\xef
+SF:\x02\0\x01\x03\xee\xeb")%r(NessusTPv11,8,"\xfe\xef\x02\0\x01\x03\xee\xe
+SF:b")%r(NessusTPv10,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(WMSRequest,10,"
+SF:\xfe\xef\x02\0\x01\x03\xee\xeb\xfe\xef\x02\0\x01\x03\xee\xeb")%r(oracle
+SF:-tns,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r(mydoom,8,"\xfe\xef\x02\0\x01
+SF:\x03\xee\xeb")%r(WWWOFFLEctrlstat,8,"\xfe\xef\x02\0\x01\x03\xee\xeb")%r
+SF:(Verifier,8,"\xfe\xef\x02\0\x01\x03\xee\xeb");
+MAC Address: 54:EF:44:90:8F:9C (Lumi United Technology)
+Device type: media device|general purpose
+Running: Google embedded, Linux 2.6.X|3.X
+OS CPE: cpe:/o:linux:linux_kernel:2.6 cpe:/o:linux:linux_kernel:3
+OS details: Google Home device, Linux 2.6.32 - 3.10
+Network Distance: 1 hop
+Service Info: Device: webcam; CPE: cpe:/h:pelco:ide10dn
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Thu Sep 17 21:41:19 2026 -- 1 IP address (1 host up) scanned in 575.03 seconds

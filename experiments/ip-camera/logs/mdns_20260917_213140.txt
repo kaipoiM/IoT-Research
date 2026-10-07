@@ -1,0 +1,8 @@
++ enx001337aa4f33 IPv6 Camera-G100-8823                              _aqara._tcp          local
++ enx001337aa4f33 IPv4 Camera-G100-8823                              _aqara._tcp          local
++ wlp3s0 IPv6 Camera-G100-8823                              _aqara._tcp          local
++ wlp3s0 IPv4 Camera-G100-8823                              _aqara._tcp          local
++ enx001337aa4f33 IPv6 Camera-G100-8823                              _aqara-setup._tcp    local
++ enx001337aa4f33 IPv4 Camera-G100-8823                              _aqara-setup._tcp    local
++ wlp3s0 IPv6 Camera-G100-8823                              _aqara-setup._tcp    local
++ wlp3s0 IPv4 Camera-G100-8823                              _aqara-setup._tcp    local
