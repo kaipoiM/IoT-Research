@@ -8,12 +8,12 @@
   "timestamp": "2026-10-07T12:47:00-10:00",
   "timestamp_range": "2026-09-17T21:41:00-10:00 (Phase 1 baseline, toggle off) through 2026-10-07T12:52:00-10:00 (toggle on/off cycle)",
   "target": {
-    "ip": "172.16.42.172",
-    "mac": "54:ef:44:90:8f:9c",
+    "ip": "192.168.100.X",
+    "mac": "XX:XX:XX:XX:XX:XX",
     "firmware": "4.3.7_0006"
   },
   "method": "Three-state comparison: (1) Phase 1 baseline recon with Aqara Home app 'RTSP LAN Preview' toggle OFF (2026-09-17), (2) manual nmap re-check with toggle OFF confirmed (2026-10-07 12:47), (3) toggle switched ON, nmap re-check (12:50), (4) toggle switched back OFF, nmap re-check (12:52)",
-  "command": "nmap -p 8554 -Pn 172.16.42.172",
+  "command": "nmap -p 8554 -Pn 192.168.100.X",
   "result_by_state": [
     {"toggle_state": "OFF (Phase 1 baseline, 2026-09-17)", "port_8554": "open", "service": "rtsp-alt"},
     {"toggle_state": "OFF (confirmed, 2026-10-07 12:47)", "port_8554": "open", "service": "rtsp-alt"},

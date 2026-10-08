@@ -107,3 +107,5 @@ scratch/
 *.orig
 experiments/ip-camera/logs/evidence_*.jpg
 experiments/ip-camera/logs/evidence_*.jpg
+experiments/ip-camera/logs/sslsplit_logs/2*.log
+experiments/ip-camera/logs/mitm_ca/ca.key

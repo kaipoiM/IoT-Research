@@ -1,0 +1,61 @@
+{
+  "test_id": "CAM-S1-MITM-001",
+  "device": "Aqara G100 Indoor/Outdoor Security Camera",
+  "state": 1,
+  "state_label": "Factory Default",
+  "phase": 3,
+  "attack_code": "MITM",
+  "timestamp": "2026-10-08T01:00:03Z",
+  "timestamp_local": "2026-10-07T15:00:03-10:00",
+  "duration_seconds": 180,
+  "target": {
+    "ip": "192.168.100.X",
+    "mac": "XX:XX:XX:XX:XX:XX",
+    "firmware": "4.3.7_0006"
+  },
+  "method": "ARP spoofing (bettercap, camera<->gateway only, arp.spoof.internal=false, arp.spoof.fullduplex=true) + transparent TLS interception (sslsplit 0.5.5) using a self-signed CA generated solely for this research and never installed/trusted on the camera. Cloud-bound traffic triggered by viewing the camera's live stream via the Aqara Home app over a separate cellular hotspot (not the test LAN), to force the remote/cloud relay path rather than local RTSP.",
+  "ca_used": "Self-signed, CN=IoT Research MITM CA, O=IoT-Security-Research — generated locally for this test, no relationship to any real certificate authority the camera could legitimately trust.",
+  "result": "SUCCESSFUL INTERCEPTION. The camera's TLS client completed a full TLS 1.3 handshake (TLS_AES_256_GCM_SHA384) against the forged certificate for SNI 'aiot-camera-usa.oss-us-west-1.aliyuncs.com' with zero certificate validation errors or connection rejections. Three authenticated HTTPS PUT requests were captured in cleartext after decryption, each containing real camera media content with a valid AWS SigV4-signed upload URL (Alibaba Cloud OSS; cloud vendor Access Key ID and full signature/URL redacted from this record per this project's data-sanitization policy — third-party key material is not published even when expired):",
+  "captured_requests": [
+    {
+      "time_utc": "2026-10-08T01:02:14Z",
+      "method": "PUT",
+      "content": "camera_snapshot_<epoch>.jpg",
+      "destination": "47.254.114.96:443 (aiot-camera-usa.oss-us-west-1.aliyuncs.com / Alibaba Cloud OSS)"
+    },
+    {
+      "time_utc": "2026-10-08T01:02:25Z",
+      "method": "PUT",
+      "content": "camera_<epoch>.mp4",
+      "destination": "47.254.114.96:443 (aiot-camera-usa.oss-us-west-1.aliyuncs.com / Alibaba Cloud OSS)"
+    },
+    {
+      "time_utc": "2026-10-08T01:02:58Z",
+      "method": "PUT",
+      "content": "camera_<epoch>.jpg",
+      "destination": "47.254.114.96:443 (aiot-camera-usa.oss-us-west-1.aliyuncs.com / Alibaba Cloud OSS)"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "CRITICAL",
+      "issue": "The camera's TLS client does not validate server certificates against any trusted root of its own — it accepted a certificate from a self-signed CA with no relationship to any real certificate authority, for a hostname it had never seen that CA vouch for before. This permits full transparent decryption of the camera's cloud-bound traffic, including real snapshot/video content and time-limited cloud storage upload credentials, by anyone able to position as a man-in-the-middle on the camera's local network segment (demonstrated here via ARP spoofing).",
+      "cwe": "CWE-295 (Improper Certificate Validation)",
+      "owasp": "I7 (Insecure Data Transfer)",
+      "etsi": "5.5 (communication security — provision for secure, verified communication not met)"
+    }
+  ],
+  "cve_2026_50091_relationship": "RELATED BUT NOT EQUIVALENT — do not conflate in the writeup. CVE-2026-50091 specifically concerns hardcoded AES keys baked into the Aqara Home Android SDK's liblumidevsdk.so, used for the app/SDK's own authentication signatures and content encryption. This test did not probe that mechanism and the signing scheme actually captured here (AWS SigV4/HMAC-SHA256 for Alibaba OSS upload authorization) is unrelated to Lumi's SDK-level crypto. What this test independently confirms is that the CAMERA'S OWN TLS client (not the companion app/SDK) fails to validate server certificates at all, which is a distinct, separately-exploitable root cause (CWE-295) that happens to produce a similarly severe outcome (cloud traffic fully interceptable). Confirming whether CVE-2026-50091's specific hardcoded-key mechanism is ALSO present would require separate analysis of the decrypted payload for an additional Lumi-SDK encryption envelope, which was not performed in this test.",
+  "incomplete_detail": "Every captured connection shows 'Error from dst bufferevent: unexpected eof while reading' / SSLERR immediately after sslsplit logged the camera's request — sslsplit's own upstream connection to the real Alibaba OSS server did not complete cleanly (possibly an SNI/Host-forwarding mismatch introduced by the proxy, unrelated to the camera's behavior). This means the camera-side handshake, decryption, and request capture are confirmed complete and successful, but whether the underlying upload actually completed end-to-end against the real Alibaba server could not be confirmed from this log alone. This does not weaken the vulnerability finding (interception and decryption already occurred on the camera's end), but should not be overstated as proof the upload itself succeeded.",
+  "evidence_files": [
+    "mitm_CAM-S1_20261007_150003.log (main script log)",
+    "sslsplit_logs/connections.log (summary of 3 captured requests)",
+    "sslsplit_logs/ per-connection capture 1 of 3 (local filename contains real target IP — kept out of this public record; see local logs/ directory)",
+    "sslsplit_logs/ per-connection capture 2 of 3 (4.4MB — SENSITIVE, contains decrypted video content; not committed, local-only)",
+    "sslsplit_logs/ per-connection capture 3 of 3 (local filename contains real target IP — kept out of this public record; see local logs/ directory)",
+    "mitm_CAM-S1_20261007_150003.pcap"
+  ],
+  "sensitivity_note": "The per-connection sslsplit logs contain decrypted camera snapshot/video bytes from the researcher's own home. Handle as sensitive research evidence: do not commit unredacted to version control (see .gitignore precedent set for evidence_*.jpg in Phase 2), and do not include raw image/video content in any published paper or report.",
+  "related_tests": ["CAM-S1-CRED-001", "CAM-S1-CRED-002", "CAM-S1-CONFIG-001"],
+  "notes": "An earlier capture attempt in this same session (first mitm_arp.sh run, 180s window starting 14:40:44 UTC) produced zero intercepted connections because bettercap failed to start due to an invalid CLI flag in the script (-log, not supported by the installed bettercap version) — ARP spoofing never began, so no camera traffic was ever redirected through the research host during that run. This was a tooling bug, not a device finding, and was fixed before this successful run. A connections.log entry at 00:51:39 UTC (prior to this test's 15:00:03 start) is leftover from earlier app troubleshooting unrelated to autonomous camera behavior and should not be read as evidence of periodic/unprompted cloud check-ins."
+}
