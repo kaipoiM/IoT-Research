@@ -68,7 +68,7 @@ NIST SP 800-213 · ETSI EN 303 645 · OWASP IoT Top 10 · California SB-327
 
 ## Author
 
-Kaipo'i J. Murray — Computer Science / University of Hawai'i at Hilo
+Kaipo'i J. Murray — Computer Science / University of Hawaiʻi at Hilo. 
 Contact: kaipoimurray@gmail.com | kaipoim@hawaii.edu
 
 ## License
