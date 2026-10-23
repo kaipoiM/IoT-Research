@@ -1,0 +1,88 @@
+# ==========================================================================
+# PUBLIC PORTFOLIO REPO — embargo enforcement
+# This repo must NEVER contain reproduction detail, evidence, or raw captures
+# for findings under coordinated disclosure. The rules below refuse that
+# content by default. Public-safe docs are allow-listed back in at the end.
+# ==========================================================================
+
+# --- All raw evidence and per-device logs (held private during embargo) ---
+experiments/*/logs/
+experiments/**/logs/
+**/logs/
+
+# --- Raw captures and binary evidence ---
+*.pcap
+*.pcapng
+*.cap
+*.raw
+*.sr
+*.complex
+*.iq
+
+# --- Firmware images and extracted filesystems ---
+datasets/firmware/
+*.bin
+*.img
+*.dd
+*.sqfs
+*.squashfs
+_extract/
+*_extracted/
+
+# --- RF / BLE signal captures ---
+datasets/rf-captures/
+*.sub
+*.hrf
+
+# --- Full device reports and consolidated findings (embargoed detail) ---
+docs/state*-report.md
+docs/*-report.md
+docs/**/state*-report.md
+experiments/**/*-report.md
+
+# --- Disclosure drafts and correspondence (process is public; drafts are not) ---
+docs/disclosure/
+!docs/disclosure-status.md
+
+# --- Credentials, keys, certs, anything secret ---
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets.*
+*secret*
+*password*
+*passphrase*
+allowed_macs
+hostapd*.conf
+*.env
+.env
+
+# --- Catch-all private staging area ---
+private/
+PRIVATE/
+*.private
+*.embargo
+
+# --- OS / editor / tooling noise ---
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
+
+# ==========================================================================
+# ALLOW-LIST: public-safe docs explicitly kept, overriding patterns above
+# ==========================================================================
+!docs/methodology.md
+!docs/vulnerability-scoring.md
+!docs/standards-summary.md
+!docs/legal-ethics.md
+!docs/irb-determination.md
+!docs/findings-summary.md
+!docs/disclosure-status.md
+!README.md
